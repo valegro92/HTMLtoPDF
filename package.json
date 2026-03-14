@@ -1,0 +1,16 @@
+{
+  "name": "html-to-pdf-converter",
+  "version": "1.0.0",
+  "description": "Converte HTML grezzo in PDF pixel-perfect usando Puppeteer",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "puppeteer": "^23.0.0"
+  }
+}

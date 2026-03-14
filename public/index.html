@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HTML → PDF Converter</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #3a3a3a;
+      color: #e0e0e0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      background: #2e2e2e;
+      border-bottom: 1px solid #1f5c5c;
+      flex-shrink: 0;
+    }
+
+    header h1 {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    header h1 span { color: #2bb5a3; }
+
+    .logo-link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: #e0e0e0;
+      flex-shrink: 0;
+    }
+
+    .logo-link img {
+      height: 32px;
+      width: auto;
+      border-radius: 6px;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    select {
+      background: #4a4a4a;
+      color: #e0e0e0;
+      border: 1px solid #555;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 13px;
+      cursor: pointer;
+      outline: none;
+    }
+
+    select:focus { border-color: #2bb5a3; }
+
+    .toggle-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #aaa;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .toggle {
+      position: relative;
+      width: 36px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+
+    .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+
+    .toggle-track {
+      position: absolute;
+      inset: 0;
+      background: #555;
+      border-radius: 10px;
+      transition: background 0.2s;
+    }
+
+    .toggle input:checked + .toggle-track { background: #2bb5a3; }
+
+    .toggle-track::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 16px;
+      height: 16px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+
+    .toggle input:checked + .toggle-track::after { transform: translateX(16px); }
+
+    button#generate {
+      background: #2bb5a3;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.2s;
+    }
+
+    button#generate:hover { background: #1f9e8f; }
+    button#generate:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      display: none;
+    }
+
+    button#generate.loading .spinner { display: block; }
+    button#generate.loading .btn-text { display: none; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .panels {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .panel-header {
+      padding: 8px 16px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #888;
+      background: #333;
+      border-bottom: 1px solid #1f5c5c;
+      flex-shrink: 0;
+    }
+
+    .divider {
+      width: 1px;
+      background: #1f5c5c;
+      flex-shrink: 0;
+    }
+
+    textarea#htmlInput {
+      flex: 1;
+      background: #333;
+      color: #d4d4d4;
+      border: none;
+      padding: 16px;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      resize: none;
+      outline: none;
+      tab-size: 2;
+    }
+
+    textarea#htmlInput::placeholder { color: #555; }
+
+    iframe#preview {
+      flex: 1;
+      border: none;
+      background: #fff;
+    }
+
+    .error-toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: #dc2626;
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      transition: transform 0.3s ease;
+      z-index: 100;
+    }
+
+    .error-toast.visible { transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+
+  <header>
+    <a href="https://lacassettadegliaitrezzi.substack.com/" target="_blank" rel="noopener" class="logo-link">
+      <img src="/logo.jpg" alt="La Cassetta degli AI-trezzi">
+      <h1>HTML <span>→</span> PDF Converter</h1>
+    </a>
+    <div class="controls">
+      <label class="toggle-label">
+        <span class="toggle">
+          <input type="checkbox" id="fitToggle">
+          <span class="toggle-track"></span>
+        </span>
+        Adatta a pagina
+      </label>
+      <select id="formatSelect">
+        <option value="Auto">Auto (contenuto)</option>
+        <option value="A4">A4</option>
+        <option value="Letter">Letter</option>
+        <option value="A3">A3</option>
+      </select>
+      <button id="generate">
+        <span class="btn-text">Genera PDF</span>
+        <div class="spinner"></div>
+      </button>
+    </div>
+  </header>
+
+  <div class="panels">
+    <div class="panel">
+      <div class="panel-header">HTML</div>
+      <textarea id="htmlInput" placeholder="Incolla il tuo HTML qui..." spellcheck="false"></textarea>
+    </div>
+    <div class="divider"></div>
+    <div class="panel">
+      <div class="panel-header">Anteprima</div>
+      <iframe id="preview" sandbox="allow-same-origin allow-scripts"></iframe>
+    </div>
+  </div>
+
+  <div class="error-toast" id="errorToast"></div>
+
+  <script>
+    const htmlInput = document.getElementById('htmlInput');
+    const preview = document.getElementById('preview');
+    const generateBtn = document.getElementById('generate');
+    const formatSelect = document.getElementById('formatSelect');
+    const fitToggle = document.getElementById('fitToggle');
+    const errorToast = document.getElementById('errorToast');
+
+    let debounceTimer = null;
+    const fitLabel = fitToggle.closest('.toggle-label');
+
+    function updateFitVisibility() {
+      fitLabel.style.display = formatSelect.value === 'Auto' ? 'none' : 'flex';
+    }
+    formatSelect.addEventListener('change', updateFitVisibility);
+    updateFitVisibility();
+
+    function updatePreview() {
+      const html = htmlInput.value;
+      const doc = preview.contentDocument;
+      if (!doc) return;
+      doc.open();
+      doc.write(html);
+      doc.close();
+    }
+
+    htmlInput.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(updatePreview, 150);
+    });
+
+    function showError(msg) {
+      errorToast.textContent = msg;
+      errorToast.classList.add('visible');
+      setTimeout(() => errorToast.classList.remove('visible'), 4000);
+    }
+
+    generateBtn.addEventListener('click', async () => {
+      const html = htmlInput.value.trim();
+      if (!html) { showError('Inserisci del codice HTML prima di generare.'); return; }
+
+      generateBtn.classList.add('loading');
+      generateBtn.disabled = true;
+
+      try {
+        const res = await fetch('/convert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ html, format: formatSelect.value, fitToPage: fitToggle.checked }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: 'Errore sconosciuto' }));
+          throw new Error(err.error);
+        }
+
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'output.pdf';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        generateBtn.classList.remove('loading');
+        generateBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
