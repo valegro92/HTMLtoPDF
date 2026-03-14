@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HTML → PDF Converter | La Cassetta degli AI-trezzi</title>
+  <meta name="description" content="Trasforma le infografiche HTML generate dall'AI in PDF pronti da condividere. Gratis, in un click.">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #3a3a3a;
+      color: #e0e0e0;
+      line-height: 1.6;
+    }
+
+    a { color: #2bb5a3; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── NAV ── */
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      background: #2e2e2e;
+      border-bottom: 1px solid #1f5c5c;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: #e0e0e0;
+    }
+
+    .nav-brand img {
+      height: 36px;
+      width: auto;
+      border-radius: 6px;
+    }
+
+    .nav-brand span {
+      font-size: 14px;
+      font-weight: 600;
+      opacity: 0.9;
+    }
+
+    .nav-cta {
+      background: #2bb5a3;
+      color: #fff;
+      padding: 8px 20px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 14px;
+      transition: background 0.2s;
+    }
+
+    .nav-cta:hover { background: #1f9e8f; text-decoration: none; }
+
+    /* ── HERO ── */
+    .hero {
+      text-align: center;
+      padding: 80px 24px 60px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .hero h1 {
+      font-size: 42px;
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 20px;
+    }
+
+    .hero h1 em {
+      font-style: normal;
+      color: #2bb5a3;
+    }
+
+    .hero p.subtitle {
+      font-size: 20px;
+      color: #aaa;
+      margin-bottom: 36px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .hero-cta {
+      display: inline-block;
+      background: #2bb5a3;
+      color: #fff;
+      padding: 14px 40px;
+      border-radius: 8px;
+      font-size: 18px;
+      font-weight: 600;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    .hero-cta:hover { background: #1f9e8f; text-decoration: none; transform: translateY(-1px); }
+
+    /* ── SECTIONS ── */
+    section {
+      padding: 60px 24px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    section h2 {
+      font-size: 28px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    section h2 em {
+      font-style: normal;
+      color: #2bb5a3;
+    }
+
+    /* ── PROBLEMA ── */
+    .problem {
+      background: #2e2e2e;
+      border-radius: 12px;
+      padding: 40px 32px;
+      max-width: 700px;
+      margin: 0 auto 60px;
+      border-left: 4px solid #e74c3c;
+    }
+
+    .problem p {
+      font-size: 17px;
+      color: #ccc;
+      margin-bottom: 12px;
+    }
+
+    .problem p:last-child { margin-bottom: 0; }
+
+    .problem strong { color: #e0e0e0; }
+
+    /* ── STEPS ── */
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      margin-bottom: 40px;
+    }
+
+    @media (max-width: 700px) {
+      .steps { grid-template-columns: 1fr; }
+      .hero h1 { font-size: 30px; }
+      .hero p.subtitle { font-size: 17px; }
+    }
+
+    .step {
+      background: #2e2e2e;
+      border-radius: 12px;
+      padding: 32px 24px;
+      text-align: center;
+      border: 1px solid #444;
+      transition: border-color 0.2s;
+    }
+
+    .step:hover { border-color: #2bb5a3; }
+
+    .step-number {
+      width: 48px;
+      height: 48px;
+      background: #1f5c5c;
+      color: #2bb5a3;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: 700;
+      margin: 0 auto 16px;
+    }
+
+    .step h3 {
+      font-size: 17px;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+
+    .step p {
+      font-size: 14px;
+      color: #999;
+    }
+
+    /* ── FORMATI ── */
+    .formats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-top: 24px;
+    }
+
+    @media (max-width: 700px) {
+      .formats { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .format-card {
+      background: #2e2e2e;
+      border: 1px solid #444;
+      border-radius: 10px;
+      padding: 20px 16px;
+      text-align: center;
+    }
+
+    .format-card h4 {
+      font-size: 18px;
+      color: #2bb5a3;
+      margin-bottom: 6px;
+    }
+
+    .format-card p {
+      font-size: 13px;
+      color: #888;
+    }
+
+    /* ── CTA FINALE ── */
+    .final-cta {
+      text-align: center;
+      padding: 60px 24px;
+    }
+
+    .final-cta p {
+      font-size: 18px;
+      color: #999;
+      margin-bottom: 24px;
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      text-align: center;
+      padding: 32px 24px;
+      border-top: 1px solid #1f5c5c;
+      color: #666;
+      font-size: 14px;
+    }
+
+    footer a { color: #2bb5a3; }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a href="https://lacassettadegliaitrezzi.substack.com/" target="_blank" rel="noopener" class="nav-brand">
+      <img src="/logo.jpg" alt="La Cassetta degli AI-trezzi">
+      <span>La Cassetta degli AI-trezzi</span>
+    </a>
+    <a href="/app" class="nav-cta">Apri il Converter</a>
+  </nav>
+
+  <div class="hero">
+    <h1>Da HTML a PDF,<br>in <em>un click</em></h1>
+    <p class="subtitle">
+      L'AI ti ha generato un'infografica HTML perfetta? Trasformala in un PDF pronto da condividere, stampare, allegare.
+    </p>
+    <a href="/app" class="hero-cta">Prova ora — gratis</a>
+  </div>
+
+  <div class="problem">
+    <p><strong>Ti suona familiare?</strong></p>
+    <p>Chiedi a ChatGPT, Claude o Gemini: <em>"Generami un'infografica sui dati del trimestre"</em>. L'AI ti restituisce un HTML bellissimo, con colori, grafici, layout perfetto.</p>
+    <p>E poi? <strong>Come lo condividi?</strong> Come lo alleghi a un'email? Come lo stampi?</p>
+    <p>Copi l'HTML e... basta. Non puoi farci niente.</p>
+  </div>
+
+  <section>
+    <h2>Come <em>funziona</em></h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <h3>Chiedi all'AI</h3>
+        <p>Genera un'infografica, un report, un poster con la tua AI preferita. Chiedi il risultato in HTML.</p>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <h3>Incolla l'HTML</h3>
+        <p>Copia il codice HTML e incollalo nel converter. Vedrai l'anteprima in tempo reale.</p>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <h3>Scarica il PDF</h3>
+        <p>Un click su "Genera PDF" e hai il tuo file pronto da condividere, stampare o allegare.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Formati <em>disponibili</em></h2>
+    <div class="formats">
+      <div class="format-card">
+        <h4>Auto</h4>
+        <p>Il PDF si adatta al contenuto. Ideale per infografiche e poster.</p>
+      </div>
+      <div class="format-card">
+        <h4>A4</h4>
+        <p>Formato standard europeo. Report, documenti, lettere.</p>
+      </div>
+      <div class="format-card">
+        <h4>Letter</h4>
+        <p>Formato US standard.</p>
+      </div>
+      <div class="format-card">
+        <h4>A3</h4>
+        <p>Doppio A4. Poster e stampe grandi.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="final-cta">
+    <p>Gratis. Nessuna registrazione. Nessun limite.</p>
+    <a href="/app" class="hero-cta">Apri il Converter</a>
+  </div>
+
+  <footer>
+    Uno strumento gratuito de
+    <a href="https://lacassettadegliaitrezzi.substack.com/" target="_blank" rel="noopener">La Cassetta degli AI-trezzi</a>
+    — la newsletter sull'adozione AI nelle PMI italiane.
+  </footer>
+
+</body>
+</html>
