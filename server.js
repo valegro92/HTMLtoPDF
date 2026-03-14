@@ -13,44 +13,18 @@ let browser = null;
 
 async function getBrowser() {
   if (!browser || !browser.connected) {
-    const launchOpts = {
+    browser = await puppeteer.launch({
       headless: 'new',
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
-        '--single-process',
+        '--disable-extensions',
+        '--disable-background-timer-throttling',
+        '--font-render-hinting=none',
       ],
-    };
-
-    // Su Render, Puppeteer scarica Chrome in una cache specifica
-    if (IS_RENDER) {
-      const cacheDir = process.env.PUPPETEER_CACHE_DIR || '/opt/render/.cache/puppeteer';
-      const fs = require('fs');
-      // Trova l'eseguibile Chrome nella cache di Render
-      const findChrome = (dir) => {
-        try {
-          const entries = fs.readdirSync(dir, { withFileTypes: true });
-          for (const entry of entries) {
-            const fullPath = path.join(dir, entry.name);
-            if (entry.isFile() && (entry.name === 'chrome' || entry.name === 'headless_shell')) return fullPath;
-            if (entry.isDirectory()) {
-              const found = findChrome(fullPath);
-              if (found) return found;
-            }
-          }
-        } catch { /* ignore */ }
-        return null;
-      };
-      const chromePath = findChrome(cacheDir);
-      if (chromePath) {
-        console.log(`🌐 Chrome trovato: ${chromePath}`);
-        launchOpts.executablePath = chromePath;
-      }
-    }
-
-    browser = await puppeteer.launch(launchOpts);
+    });
     console.log(`🚀 Browser avviato (Render: ${IS_RENDER})`);
   }
   return browser;
@@ -180,7 +154,11 @@ app.post('/convert', async (req, res) => {
     });
     res.end(pdfBuffer);
   } catch (err) {
-    console.error('Errore conversione PDF:', err.message);
+    console.error('❌ Errore conversione PDF:', err.message, err.stack);
+    // Se il browser è crashato, resettalo
+    if (browser && !browser.connected) {
+      browser = null;
+    }
     res.status(500).json({ error: `Conversione fallita: ${err.message}` });
   } finally {
     if (page) await page.close().catch(() => {});
