@@ -120,41 +120,119 @@ app.post('/convert', async (req, res) => {
     };
 
     if (isAuto) {
-      // 1. Detect slide mode: figli diretti del body con stesse dimensioni
+      // 1. Detect slide mode: 3 strategie (vertical, slider/carousel, deep search)
       const slideInfo = await page.evaluate(() => {
-        const children = Array.from(document.body.children).filter(el => {
-          const r = el.getBoundingClientRect();
-          return r.width > 100 && r.height > 100;
-        });
-        if (children.length < 2) return null;
-
-        const first = children[0].getBoundingClientRect();
-        const allSameSize = children.every(el => {
-          const r = el.getBoundingClientRect();
-          return Math.abs(r.width - first.width) / first.width < 0.1
-              && Math.abs(r.height - first.height) / first.height < 0.1;
+        // Reset transform e overflow:hidden per slider orizzontali (inRebus style)
+        document.querySelectorAll('*').forEach(el => {
+          const s = getComputedStyle(el);
+          if (s.transform && s.transform !== 'none' && el.children.length > 2) {
+            el.style.transform = 'none';
+          }
+          if (s.overflow === 'hidden' && (el === document.body || el.children.length > 2)) {
+            el.style.overflow = 'visible';
+          }
         });
 
-        if (!allSameSize) return null;
-        return { count: children.length, w: Math.ceil(first.width), h: Math.ceil(first.height) };
+        function getSizedChildren(parent) {
+          return Array.from(parent.children).filter(el => {
+            const r = el.getBoundingClientRect();
+            return r.width > 100 && r.height > 100;
+          });
+        }
+
+        function areSimilarSize(elements) {
+          if (elements.length < 2) return false;
+          const first = elements[0].getBoundingClientRect();
+          return elements.every(el => {
+            const r = el.getBoundingClientRect();
+            return Math.abs(r.width - first.width) / first.width < 0.15
+                && Math.abs(r.height - first.height) / first.height < 0.15;
+          });
+        }
+
+        let slideElements = null;
+        let slideW = 0, slideH = 0;
+        let wrapperEl = null; // il contenitore diretto delle slide
+
+        // Strategy 1: Figli diretti del body con dimensioni simili (E-Lab style)
+        const bodyChildren = getSizedChildren(document.body);
+        if (bodyChildren.length >= 2 && areSimilarSize(bodyChildren)) {
+          slideElements = bodyChildren;
+          wrapperEl = document.body;
+          const r = bodyChildren[0].getBoundingClientRect();
+          slideW = r.width; slideH = r.height;
+        }
+
+        // Strategy 2: Figli di un wrapper (slider/carousel — inRebus style)
+        if (!slideElements) {
+          for (const wrapper of bodyChildren) {
+            const wrapperChildren = getSizedChildren(wrapper);
+            if (wrapperChildren.length >= 2 && areSimilarSize(wrapperChildren)) {
+              slideElements = wrapperChildren;
+              wrapperEl = wrapper;
+              const r = wrapperChildren[0].getBoundingClientRect();
+              slideW = r.width; slideH = r.height;
+              break;
+            }
+          }
+        }
+
+        // Strategy 3: Cerca qualsiasi contenitore con 2+ figli di dimensioni simili
+        if (!slideElements) {
+          const allContainers = document.querySelectorAll('div, section, main, article');
+          for (const container of allContainers) {
+            const children = getSizedChildren(container);
+            if (children.length >= 2 && areSimilarSize(children)) {
+              slideElements = children;
+              wrapperEl = container;
+              const r = children[0].getBoundingClientRect();
+              slideW = r.width; slideH = r.height;
+              break;
+            }
+          }
+        }
+
+        if (!slideElements) return null;
+
+        // Applica CSS per layout multi-pagina PDF
+        // 1. Imposta il wrapper come layout verticale (block)
+        document.body.style.margin = '0';
+        document.body.style.padding = '0';
+        document.body.style.background = 'white';
+        document.body.style.display = 'block';
+        document.body.style.overflow = 'visible';
+
+        if (wrapperEl && wrapperEl !== document.body) {
+          wrapperEl.style.display = 'block';
+          wrapperEl.style.transform = 'none';
+          wrapperEl.style.overflow = 'visible';
+          wrapperEl.style.width = 'auto';
+          wrapperEl.style.margin = '0';
+          wrapperEl.style.padding = '0';
+        }
+
+        // 2. Ogni slide diventa una pagina PDF
+        slideElements.forEach((el, i) => {
+          el.style.pageBreakAfter = (i < slideElements.length - 1) ? 'always' : 'auto';
+          el.style.pageBreakInside = 'avoid';
+          el.style.margin = '0';
+          el.style.boxShadow = 'none';
+          el.style.borderRadius = '0';
+          el.style.transform = 'none';
+          el.style.position = 'relative';
+          el.style.left = '0';
+          el.style.top = 'auto';
+          el.style.display = 'block';
+          el.style.width = slideW + 'px';
+          el.style.minHeight = slideH + 'px';
+        });
+
+        return { count: slideElements.length, w: Math.ceil(slideW), h: Math.ceil(slideH) };
       });
 
       if (slideInfo) {
         // Slide mode: una pagina PDF per ogni slide
-        await page.evaluate(() => {
-          document.body.style.margin = '0';
-          document.body.style.padding = '0';
-          document.body.style.background = 'white';
-          document.body.style.display = 'block';
-          Array.from(document.body.children).forEach((el, i, arr) => {
-            el.style.pageBreakAfter = (i < arr.length - 1) ? 'always' : 'auto';
-            el.style.pageBreakInside = 'avoid';
-            el.style.margin = '0';
-            el.style.boxShadow = 'none';
-            el.style.borderRadius = '0';
-          });
-        });
-
+        console.log(`📄 PDF Slide mode: ${slideInfo.count} slide (${slideInfo.w}x${slideInfo.h}px)`);
         pdfOpts.width = slideInfo.w + 'px';
         pdfOpts.height = slideInfo.h + 'px';
 
