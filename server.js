@@ -119,49 +119,86 @@ app.post('/convert', async (req, res) => {
     };
 
     if (isAuto) {
-      // Trova il contenitore principale, applica reset, misura dimensioni finali
-      const finalDims = await page.evaluate(() => {
-        const body = document.body;
-        const children = Array.from(body.children);
-        let main = body;
-        if (children.length > 0) {
-          main = children.reduce((best, el) => {
-            const r = el.getBoundingClientRect();
-            const bestR = best.getBoundingClientRect();
-            return (r.width * r.height) > (bestR.width * bestR.height) ? el : best;
-          });
-        }
+      // 1. Detect slide mode: figli diretti del body con stesse dimensioni
+      const slideInfo = await page.evaluate(() => {
+        const children = Array.from(document.body.children).filter(el => {
+          const r = el.getBoundingClientRect();
+          return r.width > 100 && r.height > 100;
+        });
+        if (children.length < 2) return null;
 
-        // Reset body
-        body.style.margin = '0';
-        body.style.padding = '0';
-        body.style.display = 'block';
+        const first = children[0].getBoundingClientRect();
+        const allSameSize = children.every(el => {
+          const r = el.getBoundingClientRect();
+          return Math.abs(r.width - first.width) / first.width < 0.1
+              && Math.abs(r.height - first.height) / first.height < 0.1;
+        });
 
-        // Reset container
-        if (main !== body) {
-          main.style.maxWidth = '100%';
-          main.style.width = '100%';
-          main.style.margin = '0';
-          main.style.borderRadius = '0';
-        }
-
-        return {
-          w: Math.ceil(main.getBoundingClientRect().width),
-          h: Math.ceil(main.getBoundingClientRect().height),
-        };
+        if (!allSameSize) return null;
+        return { count: children.length, w: Math.ceil(first.width), h: Math.ceil(first.height) };
       });
 
-      await page.setViewport({ width: finalDims.w, height: 900 });
-      await new Promise(r => setTimeout(r, 300));
+      if (slideInfo) {
+        // Slide mode: una pagina PDF per ogni slide
+        await page.evaluate(() => {
+          document.body.style.margin = '0';
+          document.body.style.padding = '0';
+          document.body.style.background = 'white';
+          document.body.style.display = 'block';
+          Array.from(document.body.children).forEach((el, i, arr) => {
+            el.style.pageBreakAfter = (i < arr.length - 1) ? 'always' : 'auto';
+            el.style.pageBreakInside = 'avoid';
+            el.style.margin = '0';
+            el.style.boxShadow = 'none';
+            el.style.borderRadius = '0';
+          });
+        });
 
-      // Ri-misura dopo viewport change
-      const scrollDims = await page.evaluate(() => ({
-        w: document.body.scrollWidth,
-        h: document.body.scrollHeight,
-      }));
+        pdfOpts.width = slideInfo.w + 'px';
+        pdfOpts.height = slideInfo.h + 'px';
 
-      pdfOpts.width = scrollDims.w + 'px';
-      pdfOpts.height = scrollDims.h + 'px';
+      } else {
+        // Pagina singola: logica Auto originale
+        const finalDims = await page.evaluate(() => {
+          const body = document.body;
+          const children = Array.from(body.children);
+          let main = body;
+          if (children.length > 0) {
+            main = children.reduce((best, el) => {
+              const r = el.getBoundingClientRect();
+              const bestR = best.getBoundingClientRect();
+              return (r.width * r.height) > (bestR.width * bestR.height) ? el : best;
+            });
+          }
+
+          body.style.margin = '0';
+          body.style.padding = '0';
+          body.style.display = 'block';
+
+          if (main !== body) {
+            main.style.maxWidth = '100%';
+            main.style.width = '100%';
+            main.style.margin = '0';
+            main.style.borderRadius = '0';
+          }
+
+          return {
+            w: Math.ceil(main.getBoundingClientRect().width),
+            h: Math.ceil(main.getBoundingClientRect().height),
+          };
+        });
+
+        await page.setViewport({ width: finalDims.w, height: 900 });
+        await new Promise(r => setTimeout(r, 300));
+
+        const scrollDims = await page.evaluate(() => ({
+          w: document.body.scrollWidth,
+          h: document.body.scrollHeight,
+        }));
+
+        pdfOpts.width = scrollDims.w + 'px';
+        pdfOpts.height = scrollDims.h + 'px';
+      }
 
     } else if (fitToPage) {
       const dims = await page.evaluate(() => ({
