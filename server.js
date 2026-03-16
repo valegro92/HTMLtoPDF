@@ -217,12 +217,25 @@ app.post('/convert', async (req, res) => {
       pdfOpts.format = pageFormat;
     }
 
+    // Estrai titolo dal documento per il nome file
+    const docTitle = await page.evaluate(() => {
+      const h1 = document.querySelector('h1');
+      if (h1) return h1.textContent.trim();
+      const title = document.querySelector('title');
+      if (title) return title.textContent.trim();
+      return '';
+    });
+    const safeName = docTitle
+      ? docTitle.replace(/[^a-zA-Z0-9À-ÿ\s-]/g, '').replace(/\s+/g, '_').substring(0, 80)
+      : 'output';
+    const fileName = `${safeName}.pdf`;
+
     const pdfResult = await page.pdf(pdfOpts);
     const pdfBuffer = Buffer.from(pdfResult);
 
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': 'attachment; filename="output.pdf"',
+      'Content-Disposition': `attachment; filename="${fileName}"`,
       'Content-Length': pdfBuffer.length,
     });
     res.end(pdfBuffer);
