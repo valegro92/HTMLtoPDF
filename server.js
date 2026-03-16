@@ -252,7 +252,7 @@ app.post('/convert', async (req, res) => {
   }
 });
 
-// ── Endpoint PPTX: converte HTML slide in PowerPoint nativo editabile ──
+// ── Endpoint PPTX: converte HTML in PowerPoint (slide native o screenshot) ──
 app.post('/convert-pptx', async (req, res) => {
   if (activeConversions >= MAX_CONCURRENT) {
     return res.status(429).json({ error: 'Server occupato, riprova tra qualche secondo.' });
@@ -262,6 +262,9 @@ app.post('/convert-pptx', async (req, res) => {
   if (!html || typeof html !== 'string') {
     return res.status(400).json({ error: 'Campo "html" mancante o non valido.' });
   }
+
+  // Tipi permessi per PPTX — include 'script' per contenuti dinamici (Chart.js, ecc.)
+  const PPTX_ALLOWED = new Set(['document', 'stylesheet', 'font', 'image', 'script']);
 
   activeConversions++;
   let page = null;
@@ -274,16 +277,18 @@ app.post('/convert-pptx', async (req, res) => {
       const url = intercepted.url();
       const type = intercepted.resourceType();
       if (BLOCKED_HOSTS.test(url)) return intercepted.abort();
-      if (!ALLOWED_TYPES.has(type)) return intercepted.abort();
+      if (!PPTX_ALLOWED.has(type)) return intercepted.abort();
       intercepted.continue();
     });
 
     await page.setViewport({ width: 1280, height: 900 });
     await page.setContent(html, { waitUntil: 'networkidle2', timeout: 15000 });
+    // Attendi rendering JS (Chart.js, ecc.)
+    await new Promise(r => setTimeout(r, 500));
 
-    // ── Estrai struttura slide dal DOM ──
+    // ── FASE 1: Rileva tipo di contenuto e estrai dati ──
     const slideData = await page.evaluate(() => {
-      // Utility: converti rgb/rgba CSS in hex senza #
+      // ── Utilities ──
       function rgbToHex(rgb) {
         if (!rgb || rgb === 'transparent' || rgb === 'rgba(0, 0, 0, 0)') return null;
         const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
@@ -291,12 +296,9 @@ app.post('/convert-pptx', async (req, res) => {
         return ((1 << 24) + (parseInt(m[1]) << 16) + (parseInt(m[2]) << 8) + parseInt(m[3]))
           .toString(16).slice(1).toUpperCase();
       }
-
       function isTransparent(c) {
         return !c || c === 'transparent' || c === 'rgba(0, 0, 0, 0)';
       }
-
-      // Mappa icone Font Awesome → emoji unicode
       function mapFAIcon(className) {
         const map = {
           'fa-check': '✓', 'fa-file': '📄', 'fa-cubes': '🧊',
@@ -315,7 +317,6 @@ app.post('/convert-pptx', async (req, res) => {
         return '•';
       }
 
-      // Estrai rich text (inline formatting) da un elemento
       function extractRichText(el) {
         const parts = [];
         function walkInline(node) {
@@ -325,300 +326,314 @@ app.post('/convert-pptx', async (req, res) => {
               const parent = node.parentElement;
               const style = getComputedStyle(parent);
               parts.push({
-                text: text,
-                bold: parseInt(style.fontWeight) >= 600,
+                text, bold: parseInt(style.fontWeight) >= 600,
                 italic: style.fontStyle === 'italic',
                 color: rgbToHex(style.color) || '333333',
-                fontSize: Math.round(parseFloat(style.fontSize) * 0.75), // px → pt
+                fontSize: Math.round(parseFloat(style.fontSize) * 0.75),
               });
             }
           } else if (node.nodeType === Node.ELEMENT_NODE) {
             const style = getComputedStyle(node);
             if (style.display === 'none' || style.visibility === 'hidden') return;
-
-            // Font Awesome icons → unicode
             if (node.tagName === 'I' && node.className && node.className.includes('fa-')) {
-              const icon = mapFAIcon(node.className);
               const iStyle = getComputedStyle(node);
               parts.push({
-                text: icon + ' ',
-                bold: false,
-                italic: false,
+                text: mapFAIcon(node.className) + ' ', bold: false, italic: false,
                 color: rgbToHex(iStyle.color) || 'F39C12',
                 fontSize: Math.round(parseFloat(iStyle.fontSize) * 0.75),
               });
               return;
             }
-
-            // <br> → newline
             if (node.tagName === 'BR') {
               parts.push({ text: '\n', bold: false, italic: false, color: '333333', fontSize: 12 });
               return;
             }
-
-            for (const child of node.childNodes) {
-              walkInline(child);
-            }
+            for (const child of node.childNodes) walkInline(child);
           }
         }
         walkInline(el);
         return parts;
       }
 
-      // Determina se un elemento è un "text block" (foglia testuale)
       function isTextBlock(el) {
         const tag = el.tagName.toLowerCase();
-        const explicitTextTags = ['h1','h2','h3','h4','h5','h6','p','li','td','th','label','button'];
-        if (explicitTextTags.includes(tag)) return true;
-
-        // Div senza figli block-level → text block
+        if (['h1','h2','h3','h4','h5','h6','p','li','td','th','label','button'].includes(tag)) return true;
         if (tag === 'div' || tag === 'span' || tag === 'a') {
           for (const child of el.children) {
             const d = getComputedStyle(child).display;
             if (['block','flex','grid','table','list-item'].includes(d)) return false;
           }
-          // Ha testo diretto?
           const hasText = Array.from(el.childNodes).some(n =>
             n.nodeType === Node.TEXT_NODE && n.textContent.trim().length > 0
           );
           if (hasText) return true;
-          // Oppure ha solo inline children con testo
           if (el.children.length > 0 && el.textContent.trim().length > 0) return true;
         }
         return false;
       }
 
-      // ── Detect slide containers ──
-      const allChildren = Array.from(document.body.children).filter(el => {
-        const r = el.getBoundingClientRect();
-        return r.width > 100 && r.height > 100;
-      });
-
-      if (allChildren.length < 1) return null;
-
-      // Titolo documento
-      const docTitle = (() => {
-        const h1 = document.querySelector('h1');
-        if (h1) return h1.textContent.trim();
-        const title = document.querySelector('title');
-        if (title) return title.textContent.trim();
-        return 'Presentazione';
-      })();
-
-      const firstRect = allChildren[0].getBoundingClientRect();
-      const slideW = firstRect.width;
-      const slideH = firstRect.height;
-
-      // ── Estrai elementi da ogni slide ──
-      function extractSlide(slideEl) {
+      function extractSlide(slideEl, slideW, slideH) {
         const slideRect = slideEl.getBoundingClientRect();
         const elements = [];
         const processed = new WeakSet();
-
         function markProcessed(el) {
           processed.add(el);
           el.querySelectorAll('*').forEach(d => processed.add(d));
         }
-
         function walk(el) {
           if (processed.has(el)) return;
-
           const rect = el.getBoundingClientRect();
           const style = getComputedStyle(el);
-
           if (style.display === 'none' || style.visibility === 'hidden') return;
           if (rect.width < 2 || rect.height < 2) return;
-
           const x = rect.left - slideRect.left;
           const y = rect.top - slideRect.top;
           const w = rect.width;
           const h = rect.height;
-
-          // Fuori dai bordi della slide → skip
           if (x + w < 0 || y + h < 0 || x > slideW + 10 || y > slideH + 10) return;
 
-          // 1. Shape: elemento con background visibile
           const bgColor = style.backgroundColor;
           if (!isTransparent(bgColor) && el !== slideEl) {
             const hex = rgbToHex(bgColor);
-            // Skip bianco su sfondo bianco
             const slideBg = rgbToHex(getComputedStyle(slideEl).backgroundColor) || 'FFFFFF';
             if (hex && hex !== slideBg) {
-              elements.push({
-                type: 'shape',
-                x, y, w, h,
-                fill: hex,
-                borderRadius: parseFloat(style.borderRadius) || 0,
-              });
+              elements.push({ type: 'shape', x, y, w, h, fill: hex, borderRadius: parseFloat(style.borderRadius) || 0 });
             }
           }
-
-          // 2. Accent: border-left significativo
           const blWidth = parseFloat(style.borderLeftWidth);
           if (blWidth >= 3 && !isTransparent(style.borderLeftColor)) {
-            elements.push({
-              type: 'shape',
-              x: x, y, w: blWidth, h,
-              fill: rgbToHex(style.borderLeftColor) || 'F39C12',
-            });
+            elements.push({ type: 'shape', x, y, w: blWidth, h, fill: rgbToHex(style.borderLeftColor) || 'F39C12' });
           }
-
-          // 3. HR → linea sottile
           if (el.tagName === 'HR') {
-            const borderColor = rgbToHex(style.borderTopColor) || 'CCCCCC';
-            elements.push({
-              type: 'shape',
-              x, y: y + h / 2, w, h: 1,
-              fill: borderColor,
-            });
-            markProcessed(el);
-            return;
+            elements.push({ type: 'shape', x, y: y + h/2, w, h: 1, fill: rgbToHex(style.borderTopColor) || 'CCCCCC' });
+            markProcessed(el); return;
           }
-
-          // 4. IMG → segnaposto (non possiamo estrarre immagini esterne facilmente)
-          if (el.tagName === 'IMG') {
-            // Per ora skip, le immagini non vengono convertite
-            markProcessed(el);
-            return;
+          if (el.tagName === 'IMG' || el.tagName === 'CANVAS' || el.tagName === 'SVG') {
+            markProcessed(el); return;
           }
-
-          // 5. Text block → estrai rich text
           if (isTextBlock(el)) {
             const fullText = el.textContent.trim();
             if (fullText) {
               const richParts = extractRichText(el);
               if (richParts.length > 0) {
-                // Detect alignment
                 let align = style.textAlign;
-                if (style.display === 'flex') {
-                  if (style.justifyContent === 'center') align = 'center';
-                }
-
-                // Detect vertical align for flex containers
+                if (style.display === 'flex' && style.justifyContent === 'center') align = 'center';
                 let valign = 'top';
-                const parentStyle = el.parentElement ? getComputedStyle(el.parentElement) : null;
-                if (parentStyle && parentStyle.display === 'flex') {
-                  if (parentStyle.alignItems === 'center') valign = 'middle';
-                }
-
-                elements.push({
-                  type: 'text',
-                  x, y, w, h,
-                  parts: richParts,
+                const ps = el.parentElement ? getComputedStyle(el.parentElement) : null;
+                if (ps && ps.display === 'flex' && ps.alignItems === 'center') valign = 'middle';
+                elements.push({ type: 'text', x, y, w, h, parts: richParts,
                   align: align === 'center' ? 'center' : align === 'right' ? 'right' : 'left',
-                  valign,
-                  isBullet: el.tagName === 'LI',
-                });
-
+                  valign, isBullet: el.tagName === 'LI' });
                 markProcessed(el);
               }
             }
             return;
           }
+          for (const child of el.children) walk(child);
+        }
+        walk(slideEl);
+        return { bgColor: rgbToHex(getComputedStyle(slideEl).backgroundColor) || 'FFFFFF', elements };
+      }
 
-          // Ricorri nei figli
-          for (const child of el.children) {
-            walk(child);
+      // ── Titolo documento ──
+      const docTitle = (() => {
+        const h1 = document.querySelector('h1');
+        if (h1) return h1.textContent.trim();
+        const t = document.querySelector('title');
+        if (t) return t.textContent.trim();
+        return 'Presentazione';
+      })();
+
+      // ── DETECTION: trova slide candidates ──
+      // Prima: resetta transform su slider containers (per slider orizzontali)
+      document.querySelectorAll('*').forEach(el => {
+        const s = getComputedStyle(el);
+        if (s.transform && s.transform !== 'none' && el.children.length > 2) {
+          el.style.transform = 'none';
+        }
+        // Rimuovi overflow:hidden che nasconde slide off-screen
+        if (s.overflow === 'hidden' && (el === document.body || el.children.length > 2)) {
+          el.style.overflow = 'visible';
+        }
+      });
+
+      function getSizedChildren(parent) {
+        return Array.from(parent.children).filter(el => {
+          const r = el.getBoundingClientRect();
+          return r.width > 100 && r.height > 100;
+        });
+      }
+
+      function areSimilarSize(elements) {
+        if (elements.length < 2) return false;
+        const first = elements[0].getBoundingClientRect();
+        return elements.every(el => {
+          const r = el.getBoundingClientRect();
+          return Math.abs(r.width - first.width) / first.width < 0.15
+              && Math.abs(r.height - first.height) / first.height < 0.15;
+        });
+      }
+
+      let slideElements = null;
+      let slideW = 0, slideH = 0;
+
+      // Strategy 1: Figli diretti del body con dimensioni simili (E-Lab style)
+      const bodyChildren = getSizedChildren(document.body);
+      if (bodyChildren.length >= 2 && areSimilarSize(bodyChildren)) {
+        slideElements = bodyChildren;
+        const r = bodyChildren[0].getBoundingClientRect();
+        slideW = r.width; slideH = r.height;
+      }
+
+      // Strategy 2: Figli di un wrapper (slider/carousel — inRebus style)
+      if (!slideElements) {
+        for (const wrapper of bodyChildren) {
+          const wrapperChildren = getSizedChildren(wrapper);
+          if (wrapperChildren.length >= 2 && areSimilarSize(wrapperChildren)) {
+            slideElements = wrapperChildren;
+            const r = wrapperChildren[0].getBoundingClientRect();
+            slideW = r.width; slideH = r.height;
+            break;
           }
         }
+      }
 
-        walk(slideEl);
+      // Strategy 3: Cerca qualsiasi contenitore con 2+ figli di dimensioni simili (deep search)
+      if (!slideElements) {
+        const allContainers = document.querySelectorAll('div, section, main, article');
+        for (const container of allContainers) {
+          const children = getSizedChildren(container);
+          if (children.length >= 2 && areSimilarSize(children)) {
+            slideElements = children;
+            const r = children[0].getBoundingClientRect();
+            slideW = r.width; slideH = r.height;
+            break;
+          }
+        }
+      }
 
+      // ── Se trovate slide → estrai contenuto nativo ──
+      if (slideElements && slideElements.length >= 2) {
         return {
-          bgColor: rgbToHex(getComputedStyle(slideEl).backgroundColor) || 'FFFFFF',
-          elements,
+          mode: 'slides',
+          title: docTitle,
+          slideW, slideH,
+          slides: slideElements.map(el => extractSlide(el, slideW, slideH)),
         };
       }
 
+      // ── Nessuna slide → modalità screenshot ──
       return {
+        mode: 'screenshot',
         title: docTitle,
-        slideW,
-        slideH,
-        slides: allChildren.map(extractSlide),
+        pageW: Math.max(document.body.scrollWidth, document.documentElement.scrollWidth),
+        pageH: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight),
       };
     });
 
-    if (!slideData || !slideData.slides || slideData.slides.length === 0) {
-      return res.status(400).json({ error: 'Nessuna slide trovata. L\'HTML deve contenere elementi slide.' });
+    if (!slideData) {
+      return res.status(400).json({ error: 'Impossibile analizzare il documento HTML.' });
     }
 
-    console.log(`📊 Estratte ${slideData.slides.length} slide (${slideData.slideW}x${slideData.slideH}px)`);
-
-    // ── Costruisci PPTX con pptxgenjs ──
+    // ── FASE 2: Costruisci PPTX ──
     const pptx = new PptxGenJS();
+    const docTitle = slideData.title || 'Documento';
+    pptx.title = docTitle;
 
-    // Imposta dimensioni slide (px → inches a 96 DPI)
-    const inchW = slideData.slideW / 96;
-    const inchH = slideData.slideH / 96;
-    pptx.defineLayout({ name: 'CUSTOM', width: inchW, height: inchH });
-    pptx.layout = 'CUSTOM';
-    pptx.title = slideData.title;
+    if (slideData.mode === 'slides') {
+      // ═══ MODALITÀ SLIDE NATIVE (editabili) ═══
+      const inchW = slideData.slideW / 96;
+      const inchH = slideData.slideH / 96;
+      pptx.defineLayout({ name: 'CUSTOM', width: inchW, height: inchH });
+      pptx.layout = 'CUSTOM';
+      const sx = inchW / slideData.slideW;
+      const sy = inchH / slideData.slideH;
 
-    // Fattore di scala px → inches
-    const sx = inchW / slideData.slideW;
-    const sy = inchH / slideData.slideH;
+      console.log(`📊 Modalità SLIDE: ${slideData.slides.length} slide (${slideData.slideW}x${slideData.slideH}px)`);
 
-    for (const slideInfo of slideData.slides) {
-      const slide = pptx.addSlide();
-      slide.background = { color: slideInfo.bgColor };
+      for (const slideInfo of slideData.slides) {
+        const slide = pptx.addSlide();
+        slide.background = { color: slideInfo.bgColor };
 
-      for (const el of slideInfo.elements) {
-        if (el.type === 'shape') {
-          const shapeOpts = {
-            x: el.x * sx,
-            y: el.y * sy,
-            w: el.w * sx,
-            h: el.h * sy,
-            fill: { color: el.fill },
-          };
-          if (el.borderRadius > 0) {
-            shapeOpts.rectRadius = Math.min(el.borderRadius * sx, 0.3);
+        for (const el of slideInfo.elements) {
+          if (el.type === 'shape') {
+            const opts = {
+              x: el.x * sx, y: el.y * sy, w: el.w * sx, h: el.h * sy,
+              fill: { color: el.fill },
+            };
+            if (el.borderRadius > 0) opts.rectRadius = Math.min(el.borderRadius * sx, 0.3);
+            slide.addShape('rect', opts);
           }
-          slide.addShape('rect', shapeOpts);
+          if (el.type === 'text') {
+            const textParts = el.parts.map(p => ({
+              text: p.text,
+              options: {
+                bold: p.bold, italic: p.italic, color: p.color,
+                fontSize: Math.max(p.fontSize, 6), fontFace: 'Open Sans',
+              },
+            }));
+            if (textParts.length === 0) continue;
+            slide.addText(textParts, {
+              x: el.x * sx, y: el.y * sy,
+              w: Math.max(el.w * sx, 0.5), h: Math.max(el.h * sy, 0.3),
+              align: el.align || 'left', valign: el.valign || 'top',
+              wrap: true, margin: [2, 4, 2, 4], paraSpaceAfter: 2,
+            });
+          }
         }
+      }
 
-        if (el.type === 'text') {
-          // Costruisci array di text parts per pptxgenjs
-          const textParts = el.parts.map(p => ({
-            text: p.text,
-            options: {
-              bold: p.bold,
-              italic: p.italic,
-              color: p.color,
-              fontSize: Math.max(p.fontSize, 6), // minimo 6pt
-              fontFace: 'Open Sans',
-            },
-          }));
+    } else {
+      // ═══ MODALITÀ SCREENSHOT (dashboard, pagine, documenti) ═══
+      const pageW = Math.min(slideData.pageW, 1400);
+      const pageH = slideData.pageH;
+      const chunkH = 720; // altezza di ogni "slide" in px
 
-          if (textParts.length === 0) continue;
+      // Viewport largo per rendere la pagina completa
+      await page.setViewport({ width: pageW, height: chunkH });
+      // Attendi reflow dopo resize
+      await new Promise(r => setTimeout(r, 300));
 
-          const textOpts = {
-            x: el.x * sx,
-            y: el.y * sy,
-            w: Math.max(el.w * sx, 0.5),
-            h: Math.max(el.h * sy, 0.3),
-            align: el.align || 'left',
-            valign: el.valign || 'top',
-            wrap: true,
-            margin: [2, 4, 2, 4], // piccolo margine pt
-            paraSpaceAfter: 2,
-          };
+      // Ricalcola altezza dopo reflow
+      const finalH = await page.evaluate(() =>
+        Math.max(document.body.scrollHeight, document.documentElement.scrollHeight)
+      );
 
-          // I bullet li hanno già l'icona nel testo grazie alla FA→emoji conversion
-          slide.addText(textParts, textOpts);
-        }
+      const numChunks = Math.ceil(finalH / chunkH);
+      const slideInchW = pageW / 96;
+      const slideInchH = chunkH / 96;
+      pptx.defineLayout({ name: 'CUSTOM', width: slideInchW, height: slideInchH });
+      pptx.layout = 'CUSTOM';
+
+      console.log(`📸 Modalità SCREENSHOT: ${numChunks} pagine (${pageW}x${finalH}px, chunk ${chunkH}px)`);
+
+      for (let i = 0; i < numChunks; i++) {
+        const clipH = Math.min(chunkH, finalH - i * chunkH);
+        const screenshotRaw = await page.screenshot({
+          type: 'png',
+          clip: { x: 0, y: i * chunkH, width: pageW, height: clipH },
+        });
+        const screenshotB64 = Buffer.from(screenshotRaw).toString('base64');
+
+        const slide = pptx.addSlide();
+        slide.background = { color: 'FFFFFF' };
+        slide.addImage({
+          data: `image/png;base64,${screenshotB64}`,
+          x: 0, y: 0,
+          w: slideInchW,
+          h: (clipH / 96),
+        });
       }
     }
 
-    // Genera buffer PPTX
+    // ── Genera e invia PPTX ──
     const pptxBuffer = await pptx.write({ outputType: 'nodebuffer' });
-
-    const safeName = slideData.title
-      ? slideData.title.replace(/[^a-zA-Z0-9À-ÿ\s-]/g, '').replace(/\s+/g, '_').substring(0, 80)
+    const safeName = docTitle
+      ? docTitle.replace(/[^a-zA-Z0-9À-ÿ\s-]/g, '').replace(/\s+/g, '_').substring(0, 80)
       : 'presentazione';
     const fileName = `${safeName}.pptx`;
 
-    console.log(`✅ PPTX generato: ${fileName} (${(pptxBuffer.length / 1024).toFixed(0)}KB, ${slideData.slides.length} slide)`);
+    console.log(`✅ PPTX generato: ${fileName} (${(pptxBuffer.length / 1024).toFixed(0)}KB)`);
 
     res.set({
       'Content-Type': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
