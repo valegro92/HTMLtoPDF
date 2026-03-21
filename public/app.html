@@ -227,6 +227,13 @@
       <h1>HTML <span>→</span> PDF Converter</h1>
     </a>
     <div class="controls">
+      <label class="toggle-label" id="singlePageLabel">
+        <span class="toggle">
+          <input type="checkbox" id="singlePageToggle">
+          <span class="toggle-track"></span>
+        </span>
+        Pagina singola
+      </label>
       <label class="toggle-label">
         <span class="toggle">
           <input type="checkbox" id="fitToggle">
@@ -272,13 +279,17 @@
     const generatePptxBtn = document.getElementById('generatePptx');
     const formatSelect = document.getElementById('formatSelect');
     const fitToggle = document.getElementById('fitToggle');
+    const singlePageToggle = document.getElementById('singlePageToggle');
+    const singlePageLabel = document.getElementById('singlePageLabel');
     const errorToast = document.getElementById('errorToast');
 
     let debounceTimer = null;
     const fitLabel = fitToggle.closest('.toggle-label');
 
     function updateFitVisibility() {
-      fitLabel.style.display = formatSelect.value === 'Auto' ? 'none' : 'flex';
+      const isAuto = formatSelect.value === 'Auto';
+      fitLabel.style.display = isAuto ? 'none' : 'flex';
+      singlePageLabel.style.display = isAuto ? 'flex' : 'none';
     }
     formatSelect.addEventListener('change', updateFitVisibility);
     updateFitVisibility();
@@ -314,7 +325,7 @@
         const res = await fetch('/convert', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ html, format: formatSelect.value, fitToPage: fitToggle.checked }),
+          body: JSON.stringify({ html, format: formatSelect.value, fitToPage: fitToggle.checked, singlePage: singlePageToggle.checked }),
         });
 
         if (!res.ok) {

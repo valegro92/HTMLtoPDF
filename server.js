@@ -78,7 +78,7 @@ app.post('/convert', async (req, res) => {
     return res.status(429).json({ error: 'Server occupato, riprova tra qualche secondo.' });
   }
 
-  const { html, format = 'A4', fitToPage = false } = req.body;
+  const { html, format = 'A4', fitToPage = false, singlePage = false } = req.body;
 
   if (!html || typeof html !== 'string') {
     return res.status(400).json({ error: 'Campo "html" mancante o non valido.' });
@@ -121,7 +121,8 @@ app.post('/convert', async (req, res) => {
 
     if (isAuto) {
       // 1. Detect slide mode: 3 strategie (vertical, slider/carousel, deep search)
-      const slideInfo = await page.evaluate(() => {
+      //    Saltato se singlePage=true → tratta sempre come pagina singola
+      const slideInfo = singlePage ? null : await page.evaluate(() => {
         // Reset transform e overflow:hidden per slider orizzontali (inRebus style)
         document.querySelectorAll('*').forEach(el => {
           const s = getComputedStyle(el);
@@ -136,7 +137,8 @@ app.post('/convert', async (req, res) => {
         function getSizedChildren(parent) {
           return Array.from(parent.children).filter(el => {
             const r = el.getBoundingClientRect();
-            return r.width > 100 && r.height > 100;
+            // Altezza minima 300px: esclude celle di grid/layout (col-card, ecc.)
+            return r.width > 200 && r.height > 300;
           });
         }
 
@@ -148,6 +150,12 @@ app.post('/convert', async (req, res) => {
             return Math.abs(r.width - first.width) / first.width < 0.15
                 && Math.abs(r.height - first.height) / first.height < 0.15;
           });
+        }
+
+        function depthFromBody(el) {
+          let d = 0, cur = el;
+          while (cur && cur !== document.body) { d++; cur = cur.parentElement; }
+          return d;
         }
 
         let slideElements = null;
@@ -177,10 +185,12 @@ app.post('/convert', async (req, res) => {
           }
         }
 
-        // Strategy 3: Cerca qualsiasi contenitore con 2+ figli di dimensioni simili
+        // Strategy 3: Cerca contenitori con 2+ figli simili — max profondità 3
+        // (profondità > 3 = elementi interni di layout, non slide vere)
         if (!slideElements) {
           const allContainers = document.querySelectorAll('div, section, main, article');
           for (const container of allContainers) {
+            if (depthFromBody(container) > 3) continue;
             const children = getSizedChildren(container);
             if (children.length >= 2 && areSimilarSize(children)) {
               slideElements = children;
@@ -538,7 +548,8 @@ app.post('/convert-pptx', async (req, res) => {
       function getSizedChildren(parent) {
         return Array.from(parent.children).filter(el => {
           const r = el.getBoundingClientRect();
-          return r.width > 100 && r.height > 100;
+          // Altezza minima 300px: esclude celle di grid/layout (col-card, ecc.)
+          return r.width > 200 && r.height > 300;
         });
       }
 
@@ -550,6 +561,12 @@ app.post('/convert-pptx', async (req, res) => {
           return Math.abs(r.width - first.width) / first.width < 0.15
               && Math.abs(r.height - first.height) / first.height < 0.15;
         });
+      }
+
+      function depthFromBody(el) {
+        let d = 0, cur = el;
+        while (cur && cur !== document.body) { d++; cur = cur.parentElement; }
+        return d;
       }
 
       let slideElements = null;
@@ -576,10 +593,12 @@ app.post('/convert-pptx', async (req, res) => {
         }
       }
 
-      // Strategy 3: Cerca qualsiasi contenitore con 2+ figli di dimensioni simili (deep search)
+      // Strategy 3: Cerca contenitori con 2+ figli simili — max profondità 3
+      // (profondità > 3 = elementi interni di layout, non slide vere)
       if (!slideElements) {
         const allContainers = document.querySelectorAll('div, section, main, article');
         for (const container of allContainers) {
+          if (depthFromBody(container) > 3) continue;
           const children = getSizedChildren(container);
           if (children.length >= 2 && areSimilarSize(children)) {
             slideElements = children;
