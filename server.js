@@ -105,6 +105,11 @@ app.get('/app', (req, res) => {
 // nuove pianificazioni; disabilitiamo anche animations/transitions CSS.
 async function freezeJsExecution(page) {
   await page.evaluate(() => {
+    // Disconnetti tutti i MutationObserver registrati dal tracker iniettato in setupPage.
+    // I framework JS usano MutationObserver (non timer) per ri-attivare la slide attiva
+    // quando rileviamo che gli stili sono cambiati: questo blocca quel meccanismo.
+    if (typeof window.__killObservers === 'function') window.__killObservers();
+
     // Kill running timers/intervals (gli ID partono da 1 e crescono)
     const maxTimer = setTimeout(() => {}, 0);
     for (let i = 0; i <= maxTimer; i++) {
@@ -199,7 +204,13 @@ app.post('/convert', async (req, res) => {
             const r = el.getBoundingClientRect();
             return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) };
           });
-          const overlapping = rects.length >= 2 && Math.abs(rects[0].y - rects[1].y) < 10;
+          // overlapping = slide vere sovrapposte (stesso X E Y).
+          // Un carousel orizzontale ha stessa Y ma X diverso → NON overlapping, usiamo rects[i].
+          // detectSlides() resetta già overflow:hidden sui container, quindi anche le slide
+          // fuori viewport sono accessibili tramite clip sul loro rect effettivo.
+          const overlapping = rects.length >= 2 &&
+            Math.abs(rects[0].y - rects[1].y) < 10 &&
+            Math.abs(rects[0].x - rects[1].x) < 10;
           return { rects, overlapping, slideW: Math.ceil(result.slideW), slideH: Math.ceil(result.slideH) };
         });
       }
@@ -379,7 +390,9 @@ app.post('/convert-pptx', async (req, res) => {
           return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) };
         });
         // Slide absolute-positioned (JS presentation): same y → screenshot one at a time
-        const overlapping = rects.length >= 2 && Math.abs(rects[0].y - rects[1].y) < 10;
+        const overlapping = rects.length >= 2 &&
+          Math.abs(rects[0].y - rects[1].y) < 10 &&
+          Math.abs(rects[0].x - rects[1].x) < 10;
         return { mode: 'slides', title: docTitle, slideW, slideH, rects, overlapping };
       }
 
@@ -579,9 +592,10 @@ app.post('/convert-png', async (req, res) => {
         });
       }, slideInfo.count);
 
-      // Slide absolute-positioned (JS presentation style): same y → screenshot one at a time
+      // Slide absolute-positioned (JS presentation style): same x AND y → screenshot one at a time
       const overlapping = slideRects.length >= 2 &&
-        Math.abs(slideRects[0].y - slideRects[1].y) < 10;
+        Math.abs(slideRects[0].y - slideRects[1].y) < 10 &&
+        Math.abs(slideRects[0].x - slideRects[1].x) < 10;
 
       // Congela JS framework prima del loop
       await freezeJsExecution(page);
