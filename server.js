@@ -322,9 +322,10 @@ app.post('/convert', async (req, res) => {
     const pdfResult = await page.pdf(pdfOpts);
     const pdfBuffer = Buffer.from(pdfResult);
 
+    const encodedName = encodeURIComponent(fileName);
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="${fileName}"`,
+      'Content-Disposition': `attachment; filename="${fileName}"; filename*=UTF-8''${encodedName}`,
       'Content-Length': pdfBuffer.length,
     });
     res.end(pdfBuffer);
@@ -496,7 +497,19 @@ app.post('/convert-pptx', async (req, res) => {
             elements.push({ type: 'shape', x, y: y + h/2, w, h: 1, fill: rgbToHex(style.borderTopColor) || 'CCCCCC' });
             markProcessed(el); return;
           }
-          if (el.tagName === 'IMG' || el.tagName === 'CANVAS' || el.tagName === 'SVG') {
+          if (el.tagName === 'IMG') {
+            try {
+              const canvas = document.createElement('canvas');
+              canvas.width = rect.width;
+              canvas.height = rect.height;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(el, 0, 0, rect.width, rect.height);
+              const dataUrl = canvas.toDataURL('image/png');
+              elements.push({ type: 'image', x, y, w: rect.width, h: rect.height, dataUrl });
+            } catch (e) { /* cross-origin: skip */ }
+            markProcessed(el); return;
+          }
+          if (el.tagName === 'CANVAS' || el.tagName === 'SVG') {
             markProcessed(el); return;
           }
           if (isTextBlock(el)) {
@@ -661,6 +674,13 @@ app.post('/convert-pptx', async (req, res) => {
             if (el.borderRadius > 0) opts.rectRadius = Math.min(el.borderRadius * sx, 0.3);
             slide.addShape('rect', opts);
           }
+          if (el.type === 'image') {
+            slide.addImage({
+              data: el.dataUrl,
+              x: el.x * sx, y: el.y * sy,
+              w: el.w * sx, h: el.h * sy,
+            });
+          }
           if (el.type === 'text') {
             const textParts = el.parts.map(p => ({
               text: p.text,
@@ -697,14 +717,15 @@ app.post('/convert-pptx', async (req, res) => {
       );
 
       const numChunks = Math.ceil(finalH / chunkH);
+      const cappedChunks = Math.min(numChunks, 50);
       const slideInchW = pageW / 96;
       const slideInchH = chunkH / 96;
       pptx.defineLayout({ name: 'CUSTOM', width: slideInchW, height: slideInchH });
       pptx.layout = 'CUSTOM';
 
-      console.log(`📸 Modalità SCREENSHOT: ${numChunks} pagine (${pageW}x${finalH}px, chunk ${chunkH}px)`);
+      console.log(`📸 Modalità SCREENSHOT: ${cappedChunks} pagine (${pageW}x${finalH}px, chunk ${chunkH}px)`);
 
-      for (let i = 0; i < numChunks; i++) {
+      for (let i = 0; i < cappedChunks; i++) {
         const clipH = Math.min(chunkH, finalH - i * chunkH);
         const screenshotRaw = await page.screenshot({
           type: 'png',
@@ -732,9 +753,10 @@ app.post('/convert-pptx', async (req, res) => {
 
     console.log(`✅ PPTX generato: ${fileName} (${(pptxBuffer.length / 1024).toFixed(0)}KB)`);
 
+    const encodedName = encodeURIComponent(fileName);
     res.set({
       'Content-Type': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'Content-Disposition': `attachment; filename="${fileName}"`,
+      'Content-Disposition': `attachment; filename="${fileName}"; filename*=UTF-8''${encodedName}`,
       'Content-Length': pptxBuffer.length,
     });
     res.end(pptxBuffer);
