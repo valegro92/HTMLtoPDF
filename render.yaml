@@ -1,7 +1,0 @@
-services:
-  - type: web
-    name: html-to-pdf
-    runtime: node
-    plan: free
-    buildCommand: npm install
-    startCommand: npm start
