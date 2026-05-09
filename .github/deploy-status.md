@@ -1,8 +1,8 @@
 # Deploy Status
 
-**Run:** 25605994268  
-**Commit:** e0b80307cc89ea05338a60692be6917c9a9fb1c2  
-**Date:** 2026-05-09 16:28:15 UTC
+**Run:** 25606244713  
+**Commit:** 71251bb0cd093a33d8b56702e03650949d19de1a  
+**Date:** 2026-05-09 16:40:09 UTC
 
 ## 1. FLY_API_TOKEN check
 :white_check_mark: Token presente — lunghezza: 691 car., prefisso: `FlyV1 f`
@@ -37,7 +37,7 @@ Exit code: 0
 ## 4. flyctl apps list
 ```
  NAME               │ OWNER    │ STATUS   │ LATEST DEPLOY 
- cassetta-htmltopdf │ personal │ deployed │ 8m3s ago      
+ cassetta-htmltopdf │ personal │ deployed │ 11m25s ago    
 
 ```
 Exit code: 0
@@ -54,32 +54,31 @@ Waiting for depot builder...
 ==> Building image with Depot
 --> build:  (​)
 #1 [internal] load build definition from Dockerfile
-#1 transferring dockerfile: 857B 0.2s done
-#1 DONE 0.2s
+#1 transferring dockerfile: 857B 0.0s done
+#1 DONE 0.0s
 
 #2 [internal] load metadata for docker.io/library/node:20-slim
 #2 DONE 0.3s
 
 #3 [internal] load .dockerignore
-#3 transferring context: 102B 0.2s
-#3 transferring context: 102B 0.2s done
-#3 DONE 0.2s
+#3 transferring context: 102B 0.0s done
+#3 DONE 0.0s
 
 #4 [1/6] FROM docker.io/library/node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
 #4 resolve docker.io/library/node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 done
 #4 DONE 0.0s
 
 #5 [internal] load build context
-#5 transferring context: 322.77kB 0.4s done
-#5 DONE 0.4s
+#5 transferring context: 323.67kB 0.0s done
+#5 DONE 0.0s
 
-#6 [4/6] COPY package*.json ./
+#6 [2/6] RUN apt-get update && apt-get install -y     chromium     fonts-liberation     fonts-noto-color-emoji     libatk-bridge2.0-0     libatk1.0-0     libcups2     libdbus-1-3     libdrm2     libgbm1     libnspr4     libnss3     libxcomposite1     libxdamage1     libxfixes3     libxkbcommon0     libxrandr2     --no-install-recommends     && rm -rf /var/lib/apt/lists/*
 #6 CACHED
 
-#7 [2/6] RUN apt-get update && apt-get install -y     chromium     fonts-liberation     fonts-noto-color-emoji     libatk-bridge2.0-0     libatk1.0-0     libcups2     libdbus-1-3     libdrm2     libgbm1     libnspr4     libnss3     libxcomposite1     libxdamage1     libxfixes3     libxkbcommon0     libxrandr2     --no-install-recommends     && rm -rf /var/lib/apt/lists/*
+#7 [3/6] WORKDIR /app
 #7 CACHED
 
-#8 [3/6] WORKDIR /app
+#8 [4/6] COPY package*.json ./
 #8 CACHED
 
 #9 [5/6] RUN npm ci --omit=dev --ignore-scripts
@@ -90,36 +89,27 @@ Waiting for depot builder...
 
 #11 exporting to image
 #11 exporting layers 0.0s done
-#11 exporting manifest sha256:7e847cbf28f13bd4aac718c8e841bccb272de6ea78e7cdee0627b2e5fe98c9b0 done
-#11 exporting config sha256:376d3e409916fe1e8c3441b25563bffc1fee1576901310fae03384daee18c59f done
-#11 pushing layers for registry.fly.io/cassetta-htmltopdf:deployment-01KR6S2WR073HP8W88DKZS2HX8@sha256:7e847cbf28f13bd4aac718c8e841bccb272de6ea78e7cdee0627b2e5fe98c9b0
-#11 pushing layer sha256:92faa19a2de1e575b2841bc2b38235f0477037b60db93e4f7b26331f558d4d2d
-#11 pushing layer sha256:376d3e409916fe1e8c3441b25563bffc1fee1576901310fae03384daee18c59f
+#11 exporting manifest sha256:2cedc1a152082da856fef82eb819bdcabca37f834d8fccd59aec4264660e934f done
+#11 exporting config sha256:dbe1a99d5838d2c3b57bb23607d1662ab78dad1add9f12aecccfba84544dacdf done
+#11 pushing layers for registry.fly.io/cassetta-htmltopdf:deployment-01KR6SRNPDBRD00NDHYR3TZ20Z@sha256:2cedc1a152082da856fef82eb819bdcabca37f834d8fccd59aec4264660e934f
+#11 pushing layer sha256:dbe1a99d5838d2c3b57bb23607d1662ab78dad1add9f12aecccfba84544dacdf
+#11 pushing layer sha256:6445f7fc49a8d3822ac3e57787e47d609040adc9a68b082e3bff9578ba05bfd7 0.2s done
+#11 pushing layer sha256:56b929f516b8989b818f27cb6306a665ffcd35c8d45d1a2e6019f94217717fdd 0.1s done
+#11 pushing layer sha256:12d475d252997f09f9ee1777835a1058b7e890ea8cec030c729396ea27c4c8ff 0.0s done
+#11 pushing layer sha256:ea2b60f3338f30537bdab1ed54994203d1ead1c8d5eccddf4c765a4de72de66f 0.0s done
+#11 pushing layer sha256:cd2d757325baf0d2f571dd4287b7268a3c5219e675e49320eb685d80a13c3f4e 0.0s done
+#11 pushing layer sha256:cafbacc3deae17253644d092525dcad7ce789fc6260a5d953d273549e118b0c6 0.0s done
 #11 pushing layer sha256:2243cf1626c9741a1362ce7734d84169f70322c8a5033dda53a58981ece73b57 0.1s done
-#11 pushing layer sha256:56b929f516b8989b818f27cb6306a665ffcd35c8d45d1a2e6019f94217717fdd
-#11 pushing layer sha256:3fc0eae1aba748376103237e066b99c35684c70ecee25c7ce33a0d925cc482c5
-#11 pushing layer sha256:cafbacc3deae17253644d092525dcad7ce789fc6260a5d953d273549e118b0c6
-#11 pushing layer sha256:2fed3459f1345fcf577f3cee0671fc66f6326a38d788808fbda76c8ad770d0a3
-#11 pushing layer sha256:12d475d252997f09f9ee1777835a1058b7e890ea8cec030c729396ea27c4c8ff
-#11 pushing layer sha256:cd2d757325baf0d2f571dd4287b7268a3c5219e675e49320eb685d80a13c3f4e
-#11 pushing layer sha256:ea2b60f3338f30537bdab1ed54994203d1ead1c8d5eccddf4c765a4de72de66f
-#11 pushing layer sha256:cfe42610999d219e11903496ae408c99612b16b265e8ca98ea743eb40400cdef
-#11 pushing layer sha256:cafbacc3deae17253644d092525dcad7ce789fc6260a5d953d273549e118b0c6 0.2s done
-#11 pushing layer sha256:ea2b60f3338f30537bdab1ed54994203d1ead1c8d5eccddf4c765a4de72de66f 0.2s done
-#11 pushing layer sha256:2fed3459f1345fcf577f3cee0671fc66f6326a38d788808fbda76c8ad770d0a3 0.4s done
-#11 pushing layer sha256:56b929f516b8989b818f27cb6306a665ffcd35c8d45d1a2e6019f94217717fdd 0.5s done
-#11 pushing layer sha256:cfe42610999d219e11903496ae408c99612b16b265e8ca98ea743eb40400cdef 0.6s done
-#11 pushing layer sha256:92faa19a2de1e575b2841bc2b38235f0477037b60db93e4f7b26331f558d4d2d 0.8s done
-#11 pushing layer sha256:376d3e409916fe1e8c3441b25563bffc1fee1576901310fae03384daee18c59f 0.8s done
-#11 pushing layer sha256:3fc0eae1aba748376103237e066b99c35684c70ecee25c7ce33a0d925cc482c5 0.6s done
-#11 pushing layer sha256:12d475d252997f09f9ee1777835a1058b7e890ea8cec030c729396ea27c4c8ff 0.6s done
-#11 pushing layer sha256:cd2d757325baf0d2f571dd4287b7268a3c5219e675e49320eb685d80a13c3f4e 0.6s done
-#11 pushing layers for registry.fly.io/cassetta-htmltopdf:deployment-01KR6S2WR073HP8W88DKZS2HX8@sha256:7e847cbf28f13bd4aac718c8e841bccb272de6ea78e7cdee0627b2e5fe98c9b0 0.8s done
-#11 pushing manifest for registry.fly.io/cassetta-htmltopdf:deployment-01KR6S2WR073HP8W88DKZS2HX8@sha256:7e847cbf28f13bd4aac718c8e841bccb272de6ea78e7cdee0627b2e5fe98c9b0 0.1s done
-#11 DONE 1.0s
+#11 pushing layer sha256:3fc0eae1aba748376103237e066b99c35684c70ecee25c7ce33a0d925cc482c5 0.0s done
+#11 pushing layer sha256:2fed3459f1345fcf577f3cee0671fc66f6326a38d788808fbda76c8ad770d0a3 0.1s done
+#11 pushing layer sha256:cfe42610999d219e11903496ae408c99612b16b265e8ca98ea743eb40400cdef 0.0s done
+#11 pushing layers for registry.fly.io/cassetta-htmltopdf:deployment-01KR6SRNPDBRD00NDHYR3TZ20Z@sha256:2cedc1a152082da856fef82eb819bdcabca37f834d8fccd59aec4264660e934f 0.2s done
+#11 pushing layer sha256:dbe1a99d5838d2c3b57bb23607d1662ab78dad1add9f12aecccfba84544dacdf 0.2s done
+#11 pushing manifest for registry.fly.io/cassetta-htmltopdf:deployment-01KR6SRNPDBRD00NDHYR3TZ20Z@sha256:2cedc1a152082da856fef82eb819bdcabca37f834d8fccd59aec4264660e934f 0.1s done
+#11 DONE 0.4s
 --> Build Summary:  (​)
 [38;5;252m--> Building image done[0m
-image: registry.fly.io/cassetta-htmltopdf:deployment-01KR6S2WR073HP8W88DKZS2HX8
+image: registry.fly.io/cassetta-htmltopdf:deployment-01KR6SRNPDBRD00NDHYR3TZ20Z
 image size: 317 MB
 
 Watch your deployment at https://fly.io/apps/cassetta-htmltopdf/monitoring
