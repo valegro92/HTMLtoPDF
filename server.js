@@ -165,7 +165,6 @@ app.post('/convert', async (req, res) => {
           // 1. Imposta il wrapper come layout verticale (block)
           document.body.style.margin = '0';
           document.body.style.padding = '0';
-          document.body.style.background = 'white';
           document.body.style.display = 'block';
           document.body.style.overflow = 'visible';
 
@@ -174,6 +173,7 @@ app.post('/convert', async (req, res) => {
             wrapperEl.style.transform = 'none';
             wrapperEl.style.overflow = 'visible';
             wrapperEl.style.width = 'auto';
+            wrapperEl.style.height = 'auto';
             wrapperEl.style.margin = '0';
             wrapperEl.style.padding = '0';
           }
@@ -192,6 +192,8 @@ app.post('/convert', async (req, res) => {
             el.style.display = 'block';
             el.style.width = slideW + 'px';
             el.style.minHeight = slideH + 'px';
+            el.style.opacity = '1';
+            el.style.visibility = 'visible';
           });
 
           return { count: slideElements.length, w: Math.ceil(slideW), h: Math.ceil(slideH) };
@@ -509,6 +511,11 @@ app.post('/convert-pptx', async (req, res) => {
       // ── Se trovate slide → estrai contenuto nativo ──
       if (detection && detection.slideElements && detection.slideElements.length >= 2) {
         const { slideElements, slideW, slideH } = detection;
+        // Force all slides visible (handles visibility:hidden / opacity:0 in JS presentations)
+        slideElements.forEach(function(el) {
+          el.style.visibility = 'visible';
+          el.style.opacity = '1';
+        });
         return {
           mode: 'slides',
           title: docTitle,
@@ -709,8 +716,8 @@ app.post('/convert-png', async (req, res) => {
       await page.setViewport({ width: slideInfo.slideW, height: slideInfo.slideH * slideInfo.count + 200 });
       await new Promise(r => setTimeout(r, 200));
 
-      // Ottieni i bounding rect di ogni slide rilevata (stessa logica di __detectSlides)
-      const rects = await page.evaluate((count) => {
+      // Ottieni i bounding rect di ogni slide rilevata
+      const slideRects = await page.evaluate((count) => {
         const result = window.__detectSlides(2);
         if (!result || !result.slideElements) return [];
         return result.slideElements.slice(0, count).map(el => {
@@ -719,8 +726,23 @@ app.post('/convert-png', async (req, res) => {
         });
       }, slideInfo.count);
 
+      // Slide absolute-positioned (JS presentation style): same y → screenshot one at a time
+      const overlapping = slideRects.length >= 2 &&
+        Math.abs(slideRects[0].y - slideRects[1].y) < 10;
+
       const pngs = [];
-      for (const rect of rects) {
+      for (let i = 0; i < slideRects.length; i++) {
+        if (overlapping) {
+          await page.evaluate((idx) => {
+            const result = window.__detectSlides(2);
+            if (!result || !result.slideElements) return;
+            result.slideElements.forEach((el, j) => {
+              el.style.visibility = j === idx ? 'visible' : 'hidden';
+              el.style.opacity = j === idx ? '1' : '0';
+            });
+          }, i);
+        }
+        const rect = overlapping ? slideRects[0] : slideRects[i];
         const png = await page.screenshot({
           type: 'png',
           omitBackground: true,
