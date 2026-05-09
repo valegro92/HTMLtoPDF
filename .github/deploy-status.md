@@ -1,8 +1,8 @@
 # Deploy Status
 
-**Run:** 25601589999  
-**Commit:** 2b2726e7d03711071f10e58fe57d9d9241d8cd85  
-**Date:** 2026-05-09 12:51:50 UTC
+**Run:** 25601651474  
+**Commit:** 5e7f752e739a296a611be512cf24441cb81893fe  
+**Date:** 2026-05-09 12:55:07 UTC
 
 ## 1. FLY_API_TOKEN check
 :x: **FLY_API_TOKEN è VUOTO** — il secret non è impostato
