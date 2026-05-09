@@ -398,6 +398,10 @@
           <div class="spinner"></div>
         </button>
       </div>
+
+      <div class="ctrl-sep"></div>
+
+      <button id="logoutBtn" title="Esci" style="background:none;border:1px solid #555;border-radius:6px;color:#aaa;cursor:pointer;font-size:12px;padding:5px 10px;transition:all .15s;">Esci</button>
     </div>
   </header>
 
@@ -453,6 +457,12 @@
     const generateBtn    = document.getElementById('generate');
     const pptxBtn        = document.getElementById('generatePptx');
     const pngBtn         = document.getElementById('generatePng');
+    const logoutBtn      = document.getElementById('logoutBtn');
+
+    logoutBtn.addEventListener('click', async () => {
+      await fetch('/auth/logout', { method: 'POST' });
+      location.href = '/login';
+    });
     const formatSelect   = document.getElementById('formatSelect');
     const fitToggle      = document.getElementById('fitToggle');
     const singleToggle   = document.getElementById('singlePageToggle');
