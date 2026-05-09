@@ -1,11 +1,12 @@
 const express = require('express');
-const puppeteer = require('puppeteer');
 const PptxGenJS = require('pptxgenjs');
 const path = require('path');
 
+const { getBrowser, setupPage, getBrowserRef, clearBrowserRef } = require('./lib/browser');
+const { SLIDE_DETECTION_JS } = require('./lib/slide-detection');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
-const IS_RENDER = !!process.env.RENDER;
 const MAX_CONCURRENT = 2;
 
 app.use(express.json({ limit: '4mb' }));
@@ -15,41 +16,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'landing.html')));
 app.get('/app', (req, res) => res.sendFile(path.join(__dirname, 'public', 'app.html')));
 
-// ── Browser singleton con promise lock ──
-let browser = null;
-let browserPromise = null;
-
-async function getBrowser() {
-  if (browser?.connected) return browser;
-  if (browserPromise) return browserPromise;
-
-  browserPromise = puppeteer.launch({
-    headless: 'new',
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--disable-extensions',
-      '--disable-background-timer-throttling',
-      '--font-render-hinting=none',
-    ],
-  }).then(b => {
-    browser = b;
-    browserPromise = null;
-    b.on('disconnected', () => { browser = null; });
-    console.log(`🚀 Browser avviato (Render: ${IS_RENDER})`);
-    return b;
-  }).catch(err => {
-    browserPromise = null;
-    throw err;
-  });
-
-  return browserPromise;
-}
-
-// ── URL interni da bloccare (anti-SSRF) ──
-const BLOCKED_HOSTS = /^https?:\/\/(localhost|127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|169\.254\.|0\.0\.0\.0)/i;
+// ── Tipi di risorsa permessi per la conversione PDF ──
 const ALLOWED_TYPES = new Set(['document', 'stylesheet', 'font', 'image']);
 
 // ── Dimensioni pagina in px a 96 DPI ──
@@ -64,9 +31,10 @@ let activeConversions = 0;
 
 // ── Health check ──
 app.get('/health', (req, res) => {
+  const b = getBrowserRef();
   res.json({
     status: 'ok',
-    browser: browser?.connected ? 'connected' : 'disconnected',
+    browser: b?.connected ? 'connected' : 'disconnected',
     activeConversions,
     maxConcurrent: MAX_CONCURRENT,
   });
@@ -92,27 +60,7 @@ app.post('/convert', async (req, res) => {
   let page = null;
   try {
     const b = await getBrowser();
-    page = await b.newPage();
-
-    // Blocca script e risorse pericolose, permetti font e immagini
-    await page.setRequestInterception(true);
-    page.on('request', (req) => {
-      const url = req.url();
-      const type = req.resourceType();
-
-      // Blocca URL interni (SSRF)
-      if (BLOCKED_HOSTS.test(url)) {
-        return req.abort();
-      }
-      // Permetti solo tipi sicuri
-      if (!ALLOWED_TYPES.has(type)) {
-        return req.abort();
-      }
-      req.continue();
-    });
-
-    await page.setViewport({ width: 1280, height: 900 });
-    await page.setContent(html, { waitUntil: 'networkidle2', timeout: 15000 });
+    page = await setupPage(b, html, ALLOWED_TYPES);
 
     let pdfOpts = {
       printBackground: true,
@@ -122,123 +70,51 @@ app.post('/convert', async (req, res) => {
     if (isAuto) {
       // 1. Detect slide mode: 3 strategie (vertical, slider/carousel, deep search)
       //    Saltato se singlePage=true → tratta sempre come pagina singola
-      const slideInfo = singlePage ? null : await page.evaluate(() => {
-        // Reset transform e overflow:hidden per slider orizzontali (inRebus style)
-        document.querySelectorAll('*').forEach(el => {
-          const s = getComputedStyle(el);
-          if (s.transform && s.transform !== 'none' && el.children.length > 2) {
+      let slideInfo = null;
+      if (!singlePage) {
+        await page.addScriptTag({ content: SLIDE_DETECTION_JS });
+        slideInfo = await page.evaluate(() => {
+          const result = window.__detectSlides();
+          if (!result) return null;
+
+          const { slideElements, slideW, slideH, wrapperEl } = result;
+
+          // Applica CSS per layout multi-pagina PDF
+          // 1. Imposta il wrapper come layout verticale (block)
+          document.body.style.margin = '0';
+          document.body.style.padding = '0';
+          document.body.style.background = 'white';
+          document.body.style.display = 'block';
+          document.body.style.overflow = 'visible';
+
+          if (wrapperEl && wrapperEl !== document.body) {
+            wrapperEl.style.display = 'block';
+            wrapperEl.style.transform = 'none';
+            wrapperEl.style.overflow = 'visible';
+            wrapperEl.style.width = 'auto';
+            wrapperEl.style.margin = '0';
+            wrapperEl.style.padding = '0';
+          }
+
+          // 2. Ogni slide diventa una pagina PDF
+          slideElements.forEach((el, i) => {
+            el.style.pageBreakAfter = (i < slideElements.length - 1) ? 'always' : 'auto';
+            el.style.pageBreakInside = 'avoid';
+            el.style.margin = '0';
+            el.style.boxShadow = 'none';
+            el.style.borderRadius = '0';
             el.style.transform = 'none';
-          }
-          if (s.overflow === 'hidden' && (el === document.body || el.children.length > 2)) {
-            el.style.overflow = 'visible';
-          }
-        });
-
-        function getSizedChildren(parent) {
-          return Array.from(parent.children).filter(el => {
-            const r = el.getBoundingClientRect();
-            // Altezza minima 300px: esclude celle di grid/layout (col-card, ecc.)
-            return r.width > 200 && r.height > 300;
+            el.style.position = 'relative';
+            el.style.left = '0';
+            el.style.top = 'auto';
+            el.style.display = 'block';
+            el.style.width = slideW + 'px';
+            el.style.minHeight = slideH + 'px';
           });
-        }
 
-        function areSimilarSize(elements) {
-          if (elements.length < 2) return false;
-          const first = elements[0].getBoundingClientRect();
-          return elements.every(el => {
-            const r = el.getBoundingClientRect();
-            return Math.abs(r.width - first.width) / first.width < 0.15
-                && Math.abs(r.height - first.height) / first.height < 0.15;
-          });
-        }
-
-        function depthFromBody(el) {
-          let d = 0, cur = el;
-          while (cur && cur !== document.body) { d++; cur = cur.parentElement; }
-          return d;
-        }
-
-        let slideElements = null;
-        let slideW = 0, slideH = 0;
-        let wrapperEl = null; // il contenitore diretto delle slide
-
-        // Strategy 1: Figli diretti del body con dimensioni simili (E-Lab style)
-        const bodyChildren = getSizedChildren(document.body);
-        if (bodyChildren.length >= 2 && areSimilarSize(bodyChildren)) {
-          slideElements = bodyChildren;
-          wrapperEl = document.body;
-          const r = bodyChildren[0].getBoundingClientRect();
-          slideW = r.width; slideH = r.height;
-        }
-
-        // Strategy 2: Figli di un wrapper (slider/carousel — inRebus style)
-        if (!slideElements) {
-          for (const wrapper of bodyChildren) {
-            const wrapperChildren = getSizedChildren(wrapper);
-            if (wrapperChildren.length >= 2 && areSimilarSize(wrapperChildren)) {
-              slideElements = wrapperChildren;
-              wrapperEl = wrapper;
-              const r = wrapperChildren[0].getBoundingClientRect();
-              slideW = r.width; slideH = r.height;
-              break;
-            }
-          }
-        }
-
-        // Strategy 3: Cerca contenitori con 2+ figli simili — max profondità 3
-        // (profondità > 3 = elementi interni di layout, non slide vere)
-        if (!slideElements) {
-          const allContainers = document.querySelectorAll('div, section, main, article');
-          for (const container of allContainers) {
-            if (depthFromBody(container) > 3) continue;
-            const children = getSizedChildren(container);
-            if (children.length >= 2 && areSimilarSize(children)) {
-              slideElements = children;
-              wrapperEl = container;
-              const r = children[0].getBoundingClientRect();
-              slideW = r.width; slideH = r.height;
-              break;
-            }
-          }
-        }
-
-        if (!slideElements) return null;
-
-        // Applica CSS per layout multi-pagina PDF
-        // 1. Imposta il wrapper come layout verticale (block)
-        document.body.style.margin = '0';
-        document.body.style.padding = '0';
-        document.body.style.background = 'white';
-        document.body.style.display = 'block';
-        document.body.style.overflow = 'visible';
-
-        if (wrapperEl && wrapperEl !== document.body) {
-          wrapperEl.style.display = 'block';
-          wrapperEl.style.transform = 'none';
-          wrapperEl.style.overflow = 'visible';
-          wrapperEl.style.width = 'auto';
-          wrapperEl.style.margin = '0';
-          wrapperEl.style.padding = '0';
-        }
-
-        // 2. Ogni slide diventa una pagina PDF
-        slideElements.forEach((el, i) => {
-          el.style.pageBreakAfter = (i < slideElements.length - 1) ? 'always' : 'auto';
-          el.style.pageBreakInside = 'avoid';
-          el.style.margin = '0';
-          el.style.boxShadow = 'none';
-          el.style.borderRadius = '0';
-          el.style.transform = 'none';
-          el.style.position = 'relative';
-          el.style.left = '0';
-          el.style.top = 'auto';
-          el.style.display = 'block';
-          el.style.width = slideW + 'px';
-          el.style.minHeight = slideH + 'px';
+          return { count: slideElements.length, w: Math.ceil(slideW), h: Math.ceil(slideH) };
         });
-
-        return { count: slideElements.length, w: Math.ceil(slideW), h: Math.ceil(slideH) };
-      });
+      }
 
       if (slideInfo) {
         // Slide mode: una pagina PDF per ogni slide
@@ -330,9 +206,8 @@ app.post('/convert', async (req, res) => {
     res.end(pdfBuffer);
   } catch (err) {
     console.error('❌ Errore conversione PDF:', err.message, err.stack);
-    if (browser && !browser.connected) {
-      browser = null;
-    }
+    const b = getBrowserRef();
+    if (b && !b.connected) clearBrowserRef();
     res.status(500).json({ error: `Conversione fallita: ${err.message}` });
   } finally {
     activeConversions--;
@@ -358,23 +233,12 @@ app.post('/convert-pptx', async (req, res) => {
   let page = null;
   try {
     const b = await getBrowser();
-    page = await b.newPage();
-
-    await page.setRequestInterception(true);
-    page.on('request', (intercepted) => {
-      const url = intercepted.url();
-      const type = intercepted.resourceType();
-      if (BLOCKED_HOSTS.test(url)) return intercepted.abort();
-      if (!PPTX_ALLOWED.has(type)) return intercepted.abort();
-      intercepted.continue();
-    });
-
-    await page.setViewport({ width: 1280, height: 900 });
-    await page.setContent(html, { waitUntil: 'networkidle2', timeout: 15000 });
+    page = await setupPage(b, html, PPTX_ALLOWED);
     // Attendi rendering JS (Chart.js, ecc.)
     await new Promise(r => setTimeout(r, 500));
 
     // ── FASE 1: Rileva tipo di contenuto e estrai dati ──
+    await page.addScriptTag({ content: SLIDE_DETECTION_JS });
     const slideData = await page.evaluate(() => {
       // ── Utilities ──
       function rgbToHex(rgb) {
@@ -533,84 +397,11 @@ app.post('/convert-pptx', async (req, res) => {
       })();
 
       // ── DETECTION: trova slide candidates ──
-      // Prima: resetta transform su slider containers (per slider orizzontali)
-      document.querySelectorAll('*').forEach(el => {
-        const s = getComputedStyle(el);
-        if (s.transform && s.transform !== 'none' && el.children.length > 2) {
-          el.style.transform = 'none';
-        }
-        // Rimuovi overflow:hidden che nasconde slide off-screen
-        if (s.overflow === 'hidden' && (el === document.body || el.children.length > 2)) {
-          el.style.overflow = 'visible';
-        }
-      });
-
-      function getSizedChildren(parent) {
-        return Array.from(parent.children).filter(el => {
-          const r = el.getBoundingClientRect();
-          // Altezza minima 300px: esclude celle di grid/layout (col-card, ecc.)
-          return r.width > 200 && r.height > 300;
-        });
-      }
-
-      function areSimilarSize(elements) {
-        if (elements.length < 2) return false;
-        const first = elements[0].getBoundingClientRect();
-        return elements.every(el => {
-          const r = el.getBoundingClientRect();
-          return Math.abs(r.width - first.width) / first.width < 0.15
-              && Math.abs(r.height - first.height) / first.height < 0.15;
-        });
-      }
-
-      function depthFromBody(el) {
-        let d = 0, cur = el;
-        while (cur && cur !== document.body) { d++; cur = cur.parentElement; }
-        return d;
-      }
-
-      let slideElements = null;
-      let slideW = 0, slideH = 0;
-
-      // Strategy 1: Figli diretti del body con dimensioni simili (E-Lab style)
-      const bodyChildren = getSizedChildren(document.body);
-      if (bodyChildren.length >= 2 && areSimilarSize(bodyChildren)) {
-        slideElements = bodyChildren;
-        const r = bodyChildren[0].getBoundingClientRect();
-        slideW = r.width; slideH = r.height;
-      }
-
-      // Strategy 2: Figli di un wrapper (slider/carousel — inRebus style)
-      if (!slideElements) {
-        for (const wrapper of bodyChildren) {
-          const wrapperChildren = getSizedChildren(wrapper);
-          if (wrapperChildren.length >= 2 && areSimilarSize(wrapperChildren)) {
-            slideElements = wrapperChildren;
-            const r = wrapperChildren[0].getBoundingClientRect();
-            slideW = r.width; slideH = r.height;
-            break;
-          }
-        }
-      }
-
-      // Strategy 3: Cerca contenitori con 2+ figli simili — max profondità 3
-      // (profondità > 3 = elementi interni di layout, non slide vere)
-      if (!slideElements) {
-        const allContainers = document.querySelectorAll('div, section, main, article');
-        for (const container of allContainers) {
-          if (depthFromBody(container) > 3) continue;
-          const children = getSizedChildren(container);
-          if (children.length >= 2 && areSimilarSize(children)) {
-            slideElements = children;
-            const r = children[0].getBoundingClientRect();
-            slideW = r.width; slideH = r.height;
-            break;
-          }
-        }
-      }
+      const detection = window.__detectSlides();
 
       // ── Se trovate slide → estrai contenuto nativo ──
-      if (slideElements && slideElements.length >= 2) {
+      if (detection && detection.slideElements && detection.slideElements.length >= 2) {
+        const { slideElements, slideW, slideH } = detection;
         return {
           mode: 'slides',
           title: docTitle,
@@ -740,7 +531,8 @@ app.post('/convert-pptx', async (req, res) => {
     res.end(pptxBuffer);
   } catch (err) {
     console.error('❌ Errore conversione PPTX:', err.message, err.stack);
-    if (browser && !browser.connected) browser = null;
+    const b = getBrowserRef();
+    if (b && !b.connected) clearBrowserRef();
     res.status(500).json({ error: `Conversione PPTX fallita: ${err.message}` });
   } finally {
     activeConversions--;
@@ -751,7 +543,8 @@ app.post('/convert-pptx', async (req, res) => {
 // ── Graceful shutdown ──
 async function shutdown() {
   console.log('⏹️  Chiusura in corso...');
-  if (browser) await browser.close().catch(() => {});
+  const b = getBrowserRef();
+  if (b) await b.close().catch(() => {});
   process.exit(0);
 }
 
