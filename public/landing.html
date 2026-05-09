@@ -3,247 +3,369 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HTML → PDF Converter | La Cassetta degli AI-trezzi</title>
-  <meta name="description" content="Trasforma le infografiche HTML generate dall'AI in PDF pronti da condividere. Gratis, in un click.">
+  <title>HTML → PDF / PPTX / PNG | La Cassetta degli AI-trezzi</title>
+  <meta name="description" content="Trasforma le infografiche e presentazioni HTML generate dall'AI in PDF, PowerPoint o immagini PNG pronte da condividere. Gratis, in un click.">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #3a3a3a;
-      color: #e0e0e0;
-      line-height: 1.6;
+    :root {
+      --bg: #2a2a2a;
+      --surface: #2e2e2e;
+      --surface-2: #353535;
+      --border: #404040;
+      --border-active: #1f5c5c;
+      --text: #e8e8e8;
+      --text-muted: #a0a0a0;
+      --text-dim: #6a6a6a;
+      --accent: #2bb5a3;
+      --accent-hover: #1f9e8f;
+      --accent-bg: rgba(43, 181, 163, 0.10);
+      --warn: #e74c3c;
     }
 
-    a { color: #2bb5a3; text-decoration: none; }
-    a:hover { text-decoration: underline; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+    }
 
-    /* ── NAV ── */
+    a { color: var(--accent); text-decoration: none; transition: color 0.15s; }
+    a:hover { color: var(--accent-hover); }
+
     nav {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 16px 24px;
-      background: #2e2e2e;
-      border-bottom: 1px solid #1f5c5c;
+      padding: 14px 32px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border-active);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(8px);
     }
 
     .nav-brand {
       display: flex;
       align-items: center;
       gap: 12px;
-      text-decoration: none;
-      color: #e0e0e0;
+      color: var(--text);
     }
-
-    .nav-brand img {
-      height: 36px;
-      width: auto;
-      border-radius: 6px;
-    }
-
-    .nav-brand span {
-      font-size: 14px;
-      font-weight: 600;
-      opacity: 0.9;
-    }
+    .nav-brand:hover { color: var(--text); }
+    .nav-brand img { height: 34px; border-radius: 6px; }
+    .nav-brand span { font-size: 14px; font-weight: 600; }
 
     .nav-cta {
-      background: #2bb5a3;
+      background: var(--accent);
       color: #fff;
-      padding: 8px 20px;
-      border-radius: 6px;
+      padding: 9px 22px;
+      border-radius: 8px;
       font-weight: 600;
       font-size: 14px;
-      transition: background 0.2s;
+      transition: background 0.15s, transform 0.1s;
     }
+    .nav-cta:hover { background: var(--accent-hover); color: #fff; transform: translateY(-1px); }
 
-    .nav-cta:hover { background: #1f9e8f; text-decoration: none; }
-
-    /* ── HERO ── */
     .hero {
       text-align: center;
-      padding: 80px 24px 60px;
-      max-width: 800px;
+      padding: 90px 24px 50px;
+      max-width: 880px;
       margin: 0 auto;
     }
 
-    .hero h1 {
-      font-size: 42px;
-      font-weight: 700;
-      line-height: 1.2;
-      margin-bottom: 20px;
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--accent-bg);
+      color: var(--accent);
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 24px;
+      letter-spacing: 0.3px;
     }
 
-    .hero h1 em {
-      font-style: normal;
-      color: #2bb5a3;
+    .hero h1 {
+      font-size: 48px;
+      font-weight: 800;
+      line-height: 1.15;
+      margin-bottom: 22px;
+      letter-spacing: -0.5px;
     }
+
+    .hero h1 em { font-style: normal; color: var(--accent); }
 
     .hero p.subtitle {
-      font-size: 20px;
-      color: #aaa;
-      margin-bottom: 36px;
-      max-width: 600px;
-      margin-left: auto;
-      margin-right: auto;
+      font-size: 19px;
+      color: var(--text-muted);
+      margin: 0 auto 36px;
+      max-width: 620px;
     }
 
-    .hero-cta {
-      display: inline-block;
-      background: #2bb5a3;
-      color: #fff;
-      padding: 14px 40px;
-      border-radius: 8px;
-      font-size: 18px;
+    .hero-cta-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .btn-primary, .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 32px;
+      border-radius: 9px;
+      font-size: 16px;
       font-weight: 600;
-      transition: background 0.2s, transform 0.1s;
+      transition: background 0.15s, transform 0.1s, border-color 0.15s;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-hover); color: #fff; transform: translateY(-1px); }
+    .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+    .hero-meta {
+      margin-top: 22px;
+      font-size: 13px;
+      color: var(--text-dim);
     }
 
-    .hero-cta:hover { background: #1f9e8f; text-decoration: none; transform: translateY(-1px); }
+    .format-chips {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      margin-top: 60px;
+      flex-wrap: wrap;
+    }
 
-    /* ── SECTIONS ── */
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      padding: 10px 18px;
+      border-radius: 30px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    .chip.pdf  { border-color: rgba(43, 181, 163, 0.4); color: #2bb5a3; }
+    .chip.pptx { border-color: rgba(192, 86, 33, 0.4); color: #c05621; }
+    .chip.png  { border-color: rgba(109, 40, 217, 0.4); color: #a78bfa; }
+
     section {
-      padding: 60px 24px;
-      max-width: 900px;
+      padding: 70px 24px;
+      max-width: 1000px;
       margin: 0 auto;
     }
 
     section h2 {
-      font-size: 28px;
+      font-size: 32px;
       font-weight: 700;
       text-align: center;
-      margin-bottom: 40px;
+      margin-bottom: 14px;
+      letter-spacing: -0.3px;
     }
 
-    section h2 em {
-      font-style: normal;
-      color: #2bb5a3;
+    section h2 em { font-style: normal; color: var(--accent); }
+
+    section .section-sub {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 16px;
+      margin-bottom: 48px;
+      max-width: 560px;
+      margin-left: auto;
+      margin-right: auto;
     }
 
-    /* ── PROBLEMA ── */
     .problem {
-      background: #2e2e2e;
-      border-radius: 12px;
-      padding: 40px 32px;
-      max-width: 700px;
-      margin: 0 auto 60px;
-      border-left: 4px solid #e74c3c;
+      background: var(--surface);
+      border-radius: 14px;
+      padding: 36px 32px;
+      max-width: 760px;
+      margin: 0 auto;
+      border-left: 4px solid var(--warn);
     }
 
-    .problem p {
-      font-size: 17px;
-      color: #ccc;
-      margin-bottom: 12px;
+    .problem .quote {
+      font-style: italic;
+      color: var(--text-muted);
+      padding: 8px 0 16px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
     }
 
+    .problem p { font-size: 16px; color: #ccc; margin-bottom: 12px; }
     .problem p:last-child { margin-bottom: 0; }
+    .problem strong { color: var(--text); }
 
-    .problem strong { color: #e0e0e0; }
-
-    /* ── STEPS ── */
     .steps {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 24px;
-      margin-bottom: 40px;
-    }
-
-    @media (max-width: 700px) {
-      .steps { grid-template-columns: 1fr; }
-      .hero h1 { font-size: 30px; }
-      .hero p.subtitle { font-size: 17px; }
+      gap: 20px;
     }
 
     .step {
-      background: #2e2e2e;
-      border-radius: 12px;
-      padding: 32px 24px;
-      text-align: center;
-      border: 1px solid #444;
-      transition: border-color 0.2s;
+      background: var(--surface);
+      border-radius: 14px;
+      padding: 30px 24px;
+      border: 1px solid var(--border);
+      transition: border-color 0.2s, transform 0.2s;
     }
-
-    .step:hover { border-color: #2bb5a3; }
+    .step:hover { border-color: var(--accent); transform: translateY(-3px); }
 
     .step-number {
-      width: 48px;
-      height: 48px;
-      background: #1f5c5c;
-      color: #2bb5a3;
-      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      background: var(--accent-bg);
+      color: var(--accent);
+      border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 22px;
-      font-weight: 700;
-      margin: 0 auto 16px;
-    }
-
-    .step h3 {
       font-size: 17px;
-      margin-bottom: 8px;
-      color: #fff;
+      font-weight: 700;
+      margin-bottom: 16px;
     }
 
-    .step p {
-      font-size: 14px;
-      color: #999;
-    }
+    .step h3 { font-size: 17px; margin-bottom: 8px; color: var(--text); }
+    .step p { font-size: 14px; color: var(--text-muted); }
 
-    /* ── FORMATI ── */
-    .formats {
+    .features {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: 16px;
-      margin-top: 24px;
     }
 
-    @media (max-width: 700px) {
-      .formats { grid-template-columns: repeat(2, 1fr); }
+    .feature {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px 20px;
+      transition: border-color 0.15s;
+    }
+    .feature:hover { border-color: var(--accent); }
+
+    .feature-icon { font-size: 22px; margin-bottom: 10px; display: block; }
+    .feature h4 { font-size: 15px; color: var(--text); margin-bottom: 6px; }
+    .feature p { font-size: 13px; color: var(--text-muted); line-height: 1.55; }
+    .feature code {
+      background: var(--surface-2);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+
+    .formats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
     }
 
     .format-card {
-      background: #2e2e2e;
-      border: 1px solid #444;
-      border-radius: 10px;
-      padding: 20px 16px;
-      text-align: center;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px 22px;
     }
 
-    .format-card h4 {
+    .format-card-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .format-card-head .icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       font-size: 18px;
-      color: #2bb5a3;
-      margin-bottom: 6px;
     }
 
-    .format-card p {
-      font-size: 13px;
-      color: #888;
+    .format-card.pdf  .icon { background: rgba(43, 181, 163, 0.18); }
+    .format-card.pptx .icon { background: rgba(192, 86, 33, 0.18); }
+    .format-card.png  .icon { background: rgba(109, 40, 217, 0.18); }
+
+    .format-card h4 { font-size: 17px; color: var(--text); }
+    .format-card p { font-size: 13px; color: var(--text-muted); line-height: 1.55; }
+
+    .format-card ul { list-style: none; margin-top: 12px; }
+    .format-card li {
+      font-size: 12px;
+      color: var(--text-muted);
+      padding: 3px 0 3px 16px;
+      position: relative;
+    }
+    .format-card li::before {
+      content: '✓';
+      color: var(--accent);
+      position: absolute;
+      left: 0;
+      font-weight: 700;
     }
 
-    /* ── CTA FINALE ── */
+    .use-cases {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
+    .use-case {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px 24px;
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+
+    .use-case .uc-emoji { font-size: 28px; flex-shrink: 0; }
+    .use-case h4 { font-size: 15px; margin-bottom: 4px; }
+    .use-case p { font-size: 13px; color: var(--text-muted); }
+
     .final-cta {
       text-align: center;
-      padding: 60px 24px;
+      padding: 80px 24px;
+      max-width: 700px;
+      margin: 0 auto;
     }
 
+    .final-cta h2 { margin-bottom: 12px; }
     .final-cta p {
-      font-size: 18px;
-      color: #999;
-      margin-bottom: 24px;
+      font-size: 17px;
+      color: var(--text-muted);
+      margin-bottom: 28px;
     }
 
-    /* ── FOOTER ── */
     footer {
       text-align: center;
-      padding: 32px 24px;
-      border-top: 1px solid #1f5c5c;
-      color: #666;
+      padding: 36px 24px;
+      border-top: 1px solid var(--border-active);
+      color: var(--text-dim);
       font-size: 14px;
     }
 
-    footer a { color: #2bb5a3; }
+    @media (max-width: 760px) {
+      .hero { padding: 60px 20px 30px; }
+      .hero h1 { font-size: 32px; }
+      .hero p.subtitle { font-size: 16px; }
+      .steps, .features, .formats-grid, .use-cases { grid-template-columns: 1fr; }
+      section h2 { font-size: 24px; }
+      nav { padding: 12px 16px; }
+      .nav-brand span { display: none; }
+    }
   </style>
 </head>
 <body>
@@ -253,70 +375,183 @@
       <img src="/logo.jpg" alt="La Cassetta degli AI-trezzi">
       <span>La Cassetta degli AI-trezzi</span>
     </a>
-    <a href="/app" class="nav-cta">Apri il Converter</a>
+    <a href="/app" class="nav-cta">Apri il Converter →</a>
   </nav>
 
   <div class="hero">
-    <h1>Da HTML a PDF,<br>in <em>un click</em></h1>
+    <span class="hero-badge">✨ Gratuito · zero registrazione</span>
+    <h1>L'AI ti dà l'HTML.<br>Tu vuoi un <em>file vero</em>.</h1>
     <p class="subtitle">
-      L'AI ti ha generato un'infografica HTML perfetta? Trasformala in un PDF pronto da condividere, stampare, allegare.
+      Trasforma in un click le infografiche, presentazioni e documenti HTML generati da ChatGPT, Claude o Gemini in <strong>PDF</strong>, <strong>PowerPoint</strong> o <strong>PNG</strong> pronti da condividere.
     </p>
-    <a href="/app" class="hero-cta">Prova ora — gratis</a>
-  </div>
+    <div class="hero-cta-row">
+      <a href="/app" class="btn-primary">Apri il Converter →</a>
+      <a href="#come-funziona" class="btn-secondary">Come funziona</a>
+    </div>
+    <div class="hero-meta">
+      Anteprima live · drag & drop file HTML · scorciatoia ⌘+Enter
+    </div>
 
-  <div class="problem">
-    <p><strong>Ti suona familiare?</strong></p>
-    <p>Chiedi a ChatGPT, Claude o Gemini: <em>"Generami un'infografica sui dati del trimestre"</em>. L'AI ti restituisce un HTML bellissimo, con colori, grafici, layout perfetto.</p>
-    <p>E poi? <strong>Come lo condividi?</strong> Come lo alleghi a un'email? Come lo stampi?</p>
-    <p>Copi l'HTML e... basta. Non puoi farci niente.</p>
+    <div class="format-chips">
+      <span class="chip pdf">📄 PDF</span>
+      <span class="chip pptx">📊 PPTX editabile</span>
+      <span class="chip png">🖼 PNG (singola o ZIP)</span>
+    </div>
   </div>
 
   <section>
+    <div class="problem">
+      <p class="quote">"Generami un'infografica sul trimestre, una presentazione di 10 slide, un poster..."</p>
+      <p>L'AI ti restituisce un HTML <strong>bellissimo</strong>: layout perfetto, colori, grafici, icone.</p>
+      <p>E poi? <strong>Come lo condividi?</strong> Come lo metti in un'email, su Slack, su LinkedIn? Come lo stampi?</p>
+      <p>Stampa-da-browser? Margini sballati, layout rotto. Screenshot? Bassa risoluzione, manuale, lento. Convertitori online? Pubblicità, watermark, registrazione obbligatoria.</p>
+    </div>
+  </section>
+
+  <section id="come-funziona">
     <h2>Come <em>funziona</em></h2>
+    <p class="section-sub">Tre passaggi. Niente account. Niente file salvati sui nostri server.</p>
     <div class="steps">
       <div class="step">
         <div class="step-number">1</div>
-        <h3>Chiedi all'AI</h3>
-        <p>Genera un'infografica, un report, un poster con la tua AI preferita. Chiedi il risultato in HTML.</p>
+        <h3>Genera l'HTML</h3>
+        <p>Chiedi all'AI un'infografica, una presentazione di slide, un report. Copia il codice HTML che ti restituisce.</p>
       </div>
       <div class="step">
         <div class="step-number">2</div>
-        <h3>Incolla l'HTML</h3>
-        <p>Copia il codice HTML e incollalo nel converter. Vedrai l'anteprima in tempo reale.</p>
+        <h3>Incolla o trascina</h3>
+        <p>Incolla l'HTML nell'editor (oppure trascina direttamente il file <code>.html</code>). Vedi l'anteprima in tempo reale.</p>
       </div>
       <div class="step">
         <div class="step-number">3</div>
-        <h3>Scarica il PDF</h3>
-        <p>Un click su "Genera PDF" e hai il tuo file pronto da condividere, stampare o allegare.</p>
+        <h3>Scegli il formato</h3>
+        <p>PDF per documenti, PPTX per presentazioni editabili, PNG per immagini singole o ZIP di slide.</p>
       </div>
     </div>
   </section>
 
   <section>
-    <h2>Formati <em>disponibili</em></h2>
-    <div class="formats">
-      <div class="format-card">
-        <h4>Auto</h4>
-        <p>Il PDF si adatta al contenuto. Ideale per infografiche e poster.</p>
+    <h2>Pensato per <em>velocità</em></h2>
+    <p class="section-sub">Le piccole cose che fanno la differenza dopo la decima conversione.</p>
+    <div class="features">
+      <div class="feature">
+        <span class="feature-icon">⚡</span>
+        <h4>Anteprima live</h4>
+        <p>Mentre digiti l'HTML, vedi il risultato finale aggiornato istantaneamente nel pannello accanto.</p>
       </div>
-      <div class="format-card">
-        <h4>A4</h4>
-        <p>Formato standard europeo. Report, documenti, lettere.</p>
+      <div class="feature">
+        <span class="feature-icon">🎯</span>
+        <h4>Slide detection automatica</h4>
+        <p>Se l'HTML contiene più slide simili (presentazioni, carosello), le riconosce e genera un file multi-pagina.</p>
       </div>
-      <div class="format-card">
-        <h4>Letter</h4>
-        <p>Formato US standard.</p>
+      <div class="feature">
+        <span class="feature-icon">💡</span>
+        <h4>Suggerimento formato</h4>
+        <p>Una barra ti dice quale formato è il migliore per il tuo HTML — PDF, PPTX o PNG.</p>
       </div>
-      <div class="format-card">
-        <h4>A3</h4>
-        <p>Doppio A4. Poster e stampe grandi.</p>
+      <div class="feature">
+        <span class="feature-icon">📂</span>
+        <h4>Drag & drop file</h4>
+        <p>Hai già il file <code>.html</code> sul disco? Trascinalo nell'editor, niente copy-paste.</p>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">⌨️</span>
+        <h4>Scorciatoia tastiera</h4>
+        <p><code>⌘ Enter</code> (o <code>Ctrl + Enter</code>) genera il PDF al volo, senza staccare le mani dalla tastiera.</p>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">🔒</span>
+        <h4>Privato</h4>
+        <p>Il tuo HTML viene processato e restituito subito. Nessun salvataggio, nessuna analytics sui contenuti.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Tre <em>formati di output</em></h2>
+    <p class="section-sub">Scegli quello giusto in base a dove deve finire il file.</p>
+    <div class="formats-grid">
+      <div class="format-card pdf">
+        <div class="format-card-head">
+          <div class="icon">📄</div>
+          <h4>PDF</h4>
+        </div>
+        <p>Ideale per condividere, allegare, stampare.</p>
+        <ul>
+          <li>Auto (si adatta al contenuto)</li>
+          <li>A4, Letter, A3</li>
+          <li>Multi-pagina con slide detection</li>
+          <li>Scala automatica con "Adatta"</li>
+        </ul>
+      </div>
+      <div class="format-card pptx">
+        <div class="format-card-head">
+          <div class="icon">📊</div>
+          <h4>PPTX</h4>
+        </div>
+        <p>PowerPoint editabile, non immagini incollate.</p>
+        <ul>
+          <li>Testo, forme e colori nativi</li>
+          <li>Modificabile slide per slide</li>
+          <li>Fallback screenshot per dashboard</li>
+          <li>Compatibile Keynote / Google Slides</li>
+        </ul>
+      </div>
+      <div class="format-card png">
+        <div class="format-card-head">
+          <div class="icon">🖼</div>
+          <h4>PNG</h4>
+        </div>
+        <p>Per social, email, embedding nei post.</p>
+        <ul>
+          <li>PNG singola se il contenuto è una pagina</li>
+          <li>ZIP con una PNG per ogni slide</li>
+          <li>Risoluzione fedele al pixel</li>
+          <li>Sfondo trasparente preservato</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Per <em>chi è utile</em></h2>
+    <p class="section-sub">Qualunque cosa esca come HTML da un LLM diventa un file vero in 3 secondi.</p>
+    <div class="use-cases">
+      <div class="use-case">
+        <span class="uc-emoji">📈</span>
+        <div>
+          <h4>Consulenti & analisti</h4>
+          <p>Report e dashboard generate dall'AI → PDF da inviare al cliente.</p>
+        </div>
+      </div>
+      <div class="use-case">
+        <span class="uc-emoji">🎓</span>
+        <div>
+          <h4>Formatori & docenti</h4>
+          <p>Slide-deck generate in HTML → PPTX editabile pronto per la lezione.</p>
+        </div>
+      </div>
+      <div class="use-case">
+        <span class="uc-emoji">📱</span>
+        <div>
+          <h4>Creator & marketer</h4>
+          <p>Carosello Instagram/LinkedIn → ZIP di PNG già pronte da postare.</p>
+        </div>
+      </div>
+      <div class="use-case">
+        <span class="uc-emoji">🛠</span>
+        <div>
+          <h4>Sviluppatori & PM</h4>
+          <p>Mockup HTML, schede prodotto, one-pager → PDF allegabile in PR o ticket.</p>
+        </div>
       </div>
     </div>
   </section>
 
   <div class="final-cta">
-    <p>Gratis. Nessuna registrazione. Nessun limite.</p>
-    <a href="/app" class="hero-cta">Apri il Converter</a>
+    <h2>Pronto in <em>3 secondi</em></h2>
+    <p>Gratis. Nessuna registrazione. Nessun limite. Nessun watermark.</p>
+    <a href="/app" class="btn-primary">Apri il Converter →</a>
   </div>
 
   <footer>
