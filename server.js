@@ -98,6 +98,35 @@ app.get('/app', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'app.html'));
 });
 
+// ── Congela esecuzione JS della pagina prima dei screenshot per-slide.
+// Le presentazioni JS (es. listener su keydown + setInterval/setTimeout) re-resettano
+// lo state della slide corrente sovrascrivendo il nostro toggle visibility.
+// Killiamo timers/intervals/RAFs e overrideiamo le funzioni globali per impedire
+// nuove pianificazioni; disabilitiamo anche animations/transitions CSS.
+async function freezeJsExecution(page) {
+  await page.evaluate(() => {
+    // Kill running timers/intervals (gli ID partono da 1 e crescono)
+    const maxTimer = setTimeout(() => {}, 0);
+    for (let i = 0; i <= maxTimer; i++) {
+      try { clearTimeout(i); clearInterval(i); } catch (_) {}
+    }
+    // Kill running RAFs
+    const maxRaf = requestAnimationFrame(() => {});
+    for (let i = 0; i <= maxRaf; i++) {
+      try { cancelAnimationFrame(i); } catch (_) {}
+    }
+    // Block all future scheduling
+    window.setTimeout = function () { return 0; };
+    window.setInterval = function () { return 0; };
+    window.requestAnimationFrame = function () { return 0; };
+    window.queueMicrotask = function () {};
+    // Disabilita animations/transitions per render istantaneo
+    const style = document.createElement('style');
+    style.textContent = '*,*::before,*::after { animation: none !important; transition: none !important; }';
+    document.head.appendChild(style);
+  });
+}
+
 // ── Tipi di risorsa permessi per la conversione PDF ──
 const ALLOWED_TYPES = new Set(['document', 'stylesheet', 'font', 'image', 'script']);
 
@@ -179,6 +208,9 @@ app.post('/convert', async (req, res) => {
         // ═══ Slide mode: screenshot pixel-perfect per ogni slide → PDF assemblato ═══
         console.log(`📄 PDF Slide mode (screenshot): ${slideCapture.rects.length} slide (${slideCapture.slideW}x${slideCapture.slideH}px)`);
 
+        // Congela JS framework prima del loop screenshot
+        await freezeJsExecution(page);
+
         const screenshots = [];
         for (let i = 0; i < slideCapture.rects.length; i++) {
           if (slideCapture.overlapping) {
@@ -192,7 +224,8 @@ app.post('/convert', async (req, res) => {
                 el.style.setProperty('display', visible ? 'block' : 'none', 'important');
               });
             }, i);
-            await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+            // RAF è stato overridden da freezeJsExecution → Node setTimeout per attendere repaint
+            await new Promise(r => setTimeout(r, 80));
           }
           const rect = slideCapture.overlapping ? slideCapture.rects[0] : slideCapture.rects[i];
           const png = await page.screenshot({
@@ -376,6 +409,9 @@ app.post('/convert-pptx', async (req, res) => {
 
       console.log(`📊 PPTX Slide mode: ${slideData.rects.length} slide (${slideData.slideW}x${slideData.slideH}px)`);
 
+      // Congela JS framework prima del loop (il framework re-resetterebbe lo state)
+      await freezeJsExecution(page);
+
       for (let i = 0; i < slideData.rects.length; i++) {
         // Per layout absolute-positioned: mostra solo la slide corrente
         // Usa setProperty('important') per battere CSS .slide:not(.active) { visibility:hidden !important }
@@ -390,8 +426,8 @@ app.post('/convert-pptx', async (req, res) => {
               el.style.setProperty('display', visible ? 'block' : 'none', 'important');
             });
           }, i);
-          // Aspetta 2 frame di repaint perché lo screenshot catturi lo stato aggiornato
-          await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+          // RAF overridden → usa Node setTimeout per repaint
+          await new Promise(r => setTimeout(r, 80));
         }
 
         const rect = slideData.overlapping ? slideData.rects[0] : slideData.rects[i];
@@ -547,6 +583,9 @@ app.post('/convert-png', async (req, res) => {
       const overlapping = slideRects.length >= 2 &&
         Math.abs(slideRects[0].y - slideRects[1].y) < 10;
 
+      // Congela JS framework prima del loop
+      await freezeJsExecution(page);
+
       const pngs = [];
       for (let i = 0; i < slideRects.length; i++) {
         if (overlapping) {
@@ -560,7 +599,8 @@ app.post('/convert-png', async (req, res) => {
               el.style.setProperty('display', visible ? 'block' : 'none', 'important');
             });
           }, i);
-          await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+          // RAF overridden → usa Node setTimeout per repaint
+          await new Promise(r => setTimeout(r, 80));
         }
         const rect = overlapping ? slideRects[0] : slideRects[i];
         const png = await page.screenshot({
