@@ -317,8 +317,6 @@ app.post('/convert-pptx', async (req, res) => {
   try {
     const b = await getBrowser();
     page = await setupPage(b, html, PPTX_ALLOWED);
-    // Attendi rendering JS (Chart.js, ecc.)
-    await new Promise(r => setTimeout(r, 500));
 
     // ── FASE 1: Rileva tipo di contenuto e estrai dati ──
     await page.addScriptTag({ content: SLIDE_DETECTION_JS });
@@ -455,7 +453,21 @@ app.post('/convert-pptx', async (req, res) => {
             } catch (e) { /* cross-origin: skip */ }
             markProcessed(el); return;
           }
-          if (el.tagName === 'CANVAS' || el.tagName === 'SVG') {
+          if (el.tagName === 'CANVAS') {
+            try {
+              const dataUrl = el.toDataURL('image/png');
+              if (dataUrl && dataUrl !== 'data:,') {
+                elements.push({ type: 'image', x, y, w, h, dataUrl });
+              }
+            } catch (_) {}
+            markProcessed(el); return;
+          }
+          if (el.tagName === 'SVG') {
+            try {
+              const svgData = new XMLSerializer().serializeToString(el);
+              const b64 = btoa(unescape(encodeURIComponent(svgData)));
+              elements.push({ type: 'image', x, y, w, h, dataUrl: 'data:image/svg+xml;base64,' + b64 });
+            } catch (_) {}
             markProcessed(el); return;
           }
           if (isTextBlock(el)) {
@@ -491,8 +503,8 @@ app.post('/convert-pptx', async (req, res) => {
         return 'Presentazione';
       })();
 
-      // ── DETECTION: trova slide candidates ──
-      const detection = window.__detectSlides();
+      // ── DETECTION: soglia 2 slide (sufficiente per PPTX nativo) ──
+      const detection = window.__detectSlides(2);
 
       // ── Se trovate slide → estrai contenuto nativo ──
       if (detection && detection.slideElements && detection.slideElements.length >= 2) {
@@ -663,14 +675,12 @@ app.post('/convert-png', async (req, res) => {
   try {
     const b = await getBrowser();
     page = await setupPage(b, html, PNG_ALLOWED);
-    // Attendi rendering JS
-    await new Promise(r => setTimeout(r, 500));
 
     // ── Detect slide mode ──
     await page.addScriptTag({ content: SLIDE_DETECTION_JS });
 
     const slideInfo = await page.evaluate(() => {
-      const result = window.__detectSlides();
+      const result = window.__detectSlides(2); // soglia 2 per PNG (stesso di PPTX)
       if (!result || !result.slideElements || result.slideElements.length < 2) return null;
       return {
         count: result.slideElements.length,
@@ -701,7 +711,7 @@ app.post('/convert-png', async (req, res) => {
 
       // Ottieni i bounding rect di ogni slide rilevata (stessa logica di __detectSlides)
       const rects = await page.evaluate((count) => {
-        const result = window.__detectSlides();
+        const result = window.__detectSlides(2);
         if (!result || !result.slideElements) return [];
         return result.slideElements.slice(0, count).map(el => {
           const r = el.getBoundingClientRect();
@@ -713,6 +723,7 @@ app.post('/convert-png', async (req, res) => {
       for (const rect of rects) {
         const png = await page.screenshot({
           type: 'png',
+          omitBackground: true,
           clip: { x: rect.x, y: rect.y, width: rect.w, height: rect.h },
         });
         pngs.push(png);
@@ -742,7 +753,7 @@ app.post('/convert-png', async (req, res) => {
       await page.setViewport({ width: scrollDims.w, height: scrollDims.h });
       await new Promise(r => setTimeout(r, 200));
 
-      const png = await page.screenshot({ type: 'png', fullPage: true });
+      const png = await page.screenshot({ type: 'png', omitBackground: true, fullPage: true });
       const pngBuf = Buffer.from(png);
 
       console.log(`✅ PNG singolo generato: ${safeName}.png (${(pngBuf.length / 1024).toFixed(0)}KB)`);
