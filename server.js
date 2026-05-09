@@ -17,7 +17,7 @@ app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'landing.
 app.get('/app', (req, res) => res.sendFile(path.join(__dirname, 'public', 'app.html')));
 
 // ── Tipi di risorsa permessi per la conversione PDF ──
-const ALLOWED_TYPES = new Set(['document', 'stylesheet', 'font', 'image']);
+const ALLOWED_TYPES = new Set(['document', 'stylesheet', 'font', 'image', 'script']);
 
 // ── Dimensioni pagina in px a 96 DPI ──
 const PAGE_PX = {
