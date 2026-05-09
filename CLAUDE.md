@@ -9,7 +9,7 @@ Live: deploy su Render.com (free tier).
 ```
 HTMLtoPDF/
 ├── server.js          # Express + Puppeteer — endpoint /convert e /convert-pptx, browser singleton
-├── package.json       # express + puppeteer + pptxgenjs, node >=18
+├── package.json       # express + puppeteer + pptxgenjs + archiver, node >=18
 ├── render.yaml        # Deploy config Render.com
 ├── lib/
 │   ├── browser.js        # (futuro) browser singleton estratto da server.js
@@ -65,6 +65,17 @@ Converte HTML in un file PowerPoint (.pptx) tramite `pptxgenjs`. Supporta due mo
 - Larghezza cappata a 1400px
 
 In entrambe le modalità il nome file viene derivato dal `<h1>` o `<title>` del documento.
+
+### Endpoint POST /convert-png
+Body JSON: `{ html }`
+
+Converte HTML in immagine/i PNG tramite Puppeteer. Usa la stessa logica di slide detection degli altri endpoint:
+
+**Se ≥2 slide rilevate**: ritorna un archivio ZIP (`application/zip`) contenente `slide-01.png`, `slide-02.png`, ecc. — uno screenshot per slide. Il file ZIP è generato con la libreria `archiver`.
+
+**Se pagina singola**: ritorna direttamente un singolo file PNG (`image/png`) con lo screenshot dell'intera pagina.
+
+Il nome del file scaricato viene derivato dal `<h1>` o `<title>` del documento.
 
 ### Altri endpoint
 - `GET /` → landing.html
