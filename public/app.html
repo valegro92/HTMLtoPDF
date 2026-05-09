@@ -112,7 +112,7 @@
 
     .toggle input:checked + .toggle-track::after { transform: translateX(16px); }
 
-    button#generate, button#generatePptx {
+    button#generate, button#generatePptx, button#generatePng {
       color: #fff;
       border: none;
       border-radius: 6px;
@@ -132,7 +132,37 @@
     button#generatePptx { background: #c05621; }
     button#generatePptx:hover { background: #a04418; }
 
-    button#generate:disabled, button#generatePptx:disabled { opacity: 0.6; cursor: not-allowed; }
+    button#generatePng { background: #6d28d9; }
+    button#generatePng:hover { background: #5b21b6; }
+
+    button#generate:disabled, button#generatePptx:disabled, button#generatePng:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    #formatHint {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      background: rgba(43, 181, 163, 0.12);
+      border-left: 3px solid #2bb5a3;
+      font-size: 12px;
+      padding: 6px 12px;
+      color: #e0e0e0;
+      flex-shrink: 0;
+      border-radius: 0 4px 4px 0;
+    }
+
+    #formatHint.visible { display: flex; }
+
+    #formatHintClose {
+      background: none;
+      border: none;
+      color: #aaa;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 0 0 0 4px;
+      line-height: 1;
+    }
+
+    #formatHintClose:hover { color: #e0e0e0; }
 
     .spinner {
       width: 14px;
@@ -255,6 +285,14 @@
         <span class="btn-text">📊 PPTX</span>
         <div class="spinner"></div>
       </button>
+      <button id="generatePng">
+        <span class="btn-text">🖼 PNG</span>
+        <div class="spinner"></div>
+      </button>
+      <div id="formatHint">
+        <span id="formatHintText"></span>
+        <button id="formatHintClose" title="Chiudi">×</button>
+      </div>
     </div>
   </header>
 
@@ -277,13 +315,18 @@
     const preview = document.getElementById('preview');
     const generateBtn = document.getElementById('generate');
     const generatePptxBtn = document.getElementById('generatePptx');
+    const generatePngBtn = document.getElementById('generatePng');
     const formatSelect = document.getElementById('formatSelect');
     const fitToggle = document.getElementById('fitToggle');
     const singlePageToggle = document.getElementById('singlePageToggle');
     const singlePageLabel = document.getElementById('singlePageLabel');
     const errorToast = document.getElementById('errorToast');
+    const formatHint = document.getElementById('formatHint');
+    const formatHintText = document.getElementById('formatHintText');
+    const formatHintClose = document.getElementById('formatHintClose');
 
     let debounceTimer = null;
+    let hintDismissed = false;
     const fitLabel = fitToggle.closest('.toggle-label');
 
     function updateFitVisibility() {
@@ -303,9 +346,46 @@
       doc.close();
     }
 
+    // ── Format hint ──
+    function suggestFormat(html) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const candidates = Array.from(doc.querySelectorAll('section, [class*="slide"], [class*="page"]'));
+      if (candidates.length >= 2) return 'pptx';
+      const imgs = doc.querySelectorAll('img');
+      if (imgs.length >= 3) return 'png';
+      return 'pdf';
+    }
+
+    const hintMessages = {
+      pptx: '💡 Sembra una presentazione → consigliato PPTX',
+      png:  '💡 Contenuto ricco di immagini → consigliato PNG',
+      pdf:  '💡 Documento generico → consigliato PDF',
+    };
+
+    function updateFormatHint(html) {
+      if (!html.trim()) {
+        formatHint.classList.remove('visible');
+        return;
+      }
+      if (hintDismissed) return;
+      const suggestion = suggestFormat(html);
+      formatHintText.textContent = hintMessages[suggestion];
+      formatHint.classList.add('visible');
+    }
+
+    formatHintClose.addEventListener('click', () => {
+      formatHint.classList.remove('visible');
+      hintDismissed = true;
+    });
+
     htmlInput.addEventListener('input', () => {
       clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(updatePreview, 400);
+      hintDismissed = false;
+      debounceTimer = setTimeout(() => {
+        updatePreview();
+        updateFormatHint(htmlInput.value);
+      }, 400);
     });
 
     function showError(msg) {
@@ -392,6 +472,53 @@
       } finally {
         generatePptxBtn.classList.remove('loading');
         generatePptxBtn.disabled = false;
+      }
+    });
+
+    // ── PNG download ──
+    generatePngBtn.addEventListener('click', async () => {
+      const html = htmlInput.value.trim();
+      if (!html) { showError('Inserisci del codice HTML prima di generare.'); return; }
+
+      generatePngBtn.classList.add('loading');
+      generatePngBtn.disabled = true;
+
+      try {
+        const res = await fetch('/convert-png', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ html }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: 'Errore sconosciuto' }));
+          throw new Error(err.error);
+        }
+
+        const contentType = res.headers.get('Content-Type') || '';
+        const disposition = res.headers.get('Content-Disposition') || '';
+        const match = disposition.match(/filename="(.+?)"/);
+        let fileName;
+        if (contentType.includes('application/zip')) {
+          fileName = match ? match[1] : 'immagini.zip';
+        } else {
+          fileName = match ? match[1] : 'immagine.png';
+        }
+
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        generatePngBtn.classList.remove('loading');
+        generatePngBtn.disabled = false;
       }
     });
   </script>

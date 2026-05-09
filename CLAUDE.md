@@ -90,6 +90,8 @@ Il nome del file scaricato viene derivato dal `<h1>` o `<title>` del documento.
 - Spinner loading + toast errori
 - Download automatico del PDF via blob URL
 - Bottone `📊 PPTX` che chiama `/convert-pptx` e scarica il file .pptx risultante
+- Bottone `🖼 PNG` che chiama `/convert-png` e scarica il PNG singolo o lo ZIP di slide
+- **Hint auto-formato**: analisi client-side dell'HTML in tempo reale che suggerisce all'utente il formato più adatto (es. suggerisce Auto se vengono rilevate slide, o un formato fisso se il contenuto sembra un documento); hint mostrato visivamente accanto al selettore formato
 
 ## Landing page — landing.html
 - Pagina marketing: hero, blocco problema, 3 step come funziona, 4 formati, CTA finale

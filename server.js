@@ -562,6 +562,127 @@ app.post('/convert-pptx', async (req, res) => {
   }
 });
 
+// ── Endpoint PNG: screenshot per-slide (ZIP) o pagina intera ──
+app.post('/convert-png', async (req, res) => {
+  if (activeConversions >= MAX_CONCURRENT) {
+    return res.status(429).json({ error: 'Server occupato, riprova tra qualche secondo.' });
+  }
+
+  const { html } = req.body;
+  if (!html || typeof html !== 'string') {
+    return res.status(400).json({ error: 'Campo "html" mancante o non valido.' });
+  }
+
+  // Stessi tipi permessi di PPTX (include script per contenuti dinamici)
+  const PNG_ALLOWED = new Set(['document', 'stylesheet', 'font', 'image', 'script']);
+
+  activeConversions++;
+  let page = null;
+  try {
+    const b = await getBrowser();
+    page = await setupPage(b, html, PNG_ALLOWED);
+    // Attendi rendering JS
+    await new Promise(r => setTimeout(r, 500));
+
+    // ── Detect slide mode ──
+    await page.addScriptTag({ content: SLIDE_DETECTION_JS });
+
+    const slideInfo = await page.evaluate(() => {
+      const result = window.__detectSlides();
+      if (!result || !result.slideElements || result.slideElements.length < 2) return null;
+      return {
+        count: result.slideElements.length,
+        slideW: Math.ceil(result.slideW),
+        slideH: Math.ceil(result.slideH),
+      };
+    });
+
+    // Titolo documento per nome file
+    const docTitle = await page.evaluate(() => {
+      const h1 = document.querySelector('h1');
+      if (h1) return h1.textContent.trim();
+      const t = document.querySelector('title');
+      if (t) return t.textContent.trim();
+      return '';
+    });
+    const safeName = docTitle
+      ? docTitle.replace(/[^a-zA-Z0-9À-ÿ\s-]/g, '').replace(/\s+/g, '_').substring(0, 80)
+      : 'output';
+
+    if (slideInfo) {
+      // ═══ MODALITÀ SLIDE: uno screenshot per slide → ZIP ═══
+      console.log(`🖼️  PNG Slide mode: ${slideInfo.count} slide (${slideInfo.slideW}x${slideInfo.slideH}px)`);
+
+      // Imposta viewport abbastanza grande da contenere tutte le slide
+      await page.setViewport({ width: slideInfo.slideW, height: slideInfo.slideH * slideInfo.count + 200 });
+      await new Promise(r => setTimeout(r, 200));
+
+      // Ottieni i bounding rect di ogni slide rilevata (stessa logica di __detectSlides)
+      const rects = await page.evaluate((count) => {
+        const result = window.__detectSlides();
+        if (!result || !result.slideElements) return [];
+        return result.slideElements.slice(0, count).map(el => {
+          const r = el.getBoundingClientRect();
+          return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) };
+        });
+      }, slideInfo.count);
+
+      const pngs = [];
+      for (const rect of rects) {
+        const png = await page.screenshot({
+          type: 'png',
+          clip: { x: rect.x, y: rect.y, width: rect.w, height: rect.h },
+        });
+        pngs.push(png);
+      }
+
+      // Assembla ZIP
+      const archiver = require('archiver');
+      res.set({
+        'Content-Type': 'application/zip',
+        'Content-Disposition': `attachment; filename="slides.zip"`,
+      });
+      const archive = archiver('zip', { zlib: { level: 6 } });
+      archive.pipe(res);
+      for (let i = 0; i < pngs.length; i++) {
+        archive.append(Buffer.from(pngs[i]), { name: `slide-${String(i + 1).padStart(2, '0')}.png` });
+      }
+      await archive.finalize();
+      console.log(`✅ PNG ZIP generato: ${pngs.length} slide`);
+
+    } else {
+      // ═══ MODALITÀ PAGINA SINGOLA: screenshot fullPage ═══
+      const scrollDims = await page.evaluate(() => ({
+        w: Math.max(document.body.scrollWidth, document.documentElement.scrollWidth),
+        h: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight),
+      }));
+
+      await page.setViewport({ width: scrollDims.w, height: scrollDims.h });
+      await new Promise(r => setTimeout(r, 200));
+
+      const png = await page.screenshot({ type: 'png', fullPage: true });
+      const pngBuf = Buffer.from(png);
+
+      console.log(`✅ PNG singolo generato: ${safeName}.png (${(pngBuf.length / 1024).toFixed(0)}KB)`);
+
+      res.set({
+        'Content-Type': 'image/png',
+        'Content-Disposition': `attachment; filename="${safeName}.png"`,
+        'Content-Length': pngBuf.length,
+      });
+      res.end(pngBuf);
+    }
+  } catch (err) {
+    console.error('❌ Errore conversione PNG:', err.message, err.stack);
+    const b = getBrowserRef();
+    if (b && !b.connected) clearBrowserRef();
+    res.status(500).json({ error: `Conversione PNG fallita: ${err.message}` });
+  } finally {
+    activeConversions--;
+    if (page) await page.close().catch(() => {});
+  }
+});
+
 // ── Graceful shutdown ──
 async function shutdown() {
   console.log('⏹️  Chiusura in corso...');
