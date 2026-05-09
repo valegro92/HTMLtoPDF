@@ -6,45 +6,91 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Diagnostica ambiente
-        run: |
-          echo "=== Ambiente ==="
-          echo "Branch: ${{ github.ref_name }}"
-          echo "Commit: ${{ github.sha }}"
-          if [ -z "$FLY_API_TOKEN" ]; then
-            echo "❌ FLY_API_TOKEN è VUOTO — il secret non è impostato correttamente"
-            exit 1
-          else
-            echo "✅ FLY_API_TOKEN presente (lunghezza: $(echo -n "$FLY_API_TOKEN" | wc -c) caratteri)"
-            echo "Prefisso token: $(echo "$FLY_API_TOKEN" | cut -c1-7)..."
-          fi
-          echo "=== fly.toml ==="
-          cat fly.toml
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Installa flyctl
         run: |
           curl -L https://fly.io/install.sh | sh
           echo "$HOME/.fly/bin" >> $GITHUB_PATH
 
-      - name: Verifica autenticazione
-        run: flyctl auth whoami
+      - name: Esegui deploy con cattura output
+        id: deploy
+        continue-on-error: true
+        run: |
+          set +e
+          mkdir -p .github
+          LOG_FILE=.github/deploy-status.md
+          {
+            echo "# Deploy Status"
+            echo ""
+            echo "**Run:** ${{ github.run_id }}  "
+            echo "**Commit:** ${{ github.sha }}  "
+            echo "**Date:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+            echo ""
+            echo "## 1. FLY_API_TOKEN check"
+            if [ -z "$FLY_API_TOKEN" ]; then
+              echo ":x: **FLY_API_TOKEN è VUOTO** — il secret non è impostato"
+            else
+              LEN=$(echo -n "$FLY_API_TOKEN" | wc -c)
+              PREFIX=$(echo "$FLY_API_TOKEN" | cut -c1-7)
+              echo ":white_check_mark: Token presente — lunghezza: ${LEN} car., prefisso: \`${PREFIX}\`"
+            fi
+            echo ""
+            echo "## 2. fly.toml"
+            echo '```toml'
+            cat fly.toml
+            echo '```'
+            echo ""
+            echo "## 3. flyctl auth whoami"
+            echo '```'
+            flyctl auth whoami 2>&1
+            AUTH_RC=$?
+            echo '```'
+            echo "Exit code: $AUTH_RC"
+            echo ""
+            echo "## 4. flyctl apps list"
+            echo '```'
+            flyctl apps list 2>&1
+            APPS_RC=$?
+            echo '```'
+            echo "Exit code: $APPS_RC"
+            echo ""
+            echo "## 5. flyctl deploy --remote-only"
+            echo '```'
+            flyctl deploy --remote-only --wait-timeout 600 2>&1
+            DEPLOY_RC=$?
+            echo '```'
+            echo "Exit code: $DEPLOY_RC"
+            echo ""
+            if [ $DEPLOY_RC -eq 0 ]; then
+              echo ":rocket: **Deploy riuscito**"
+            else
+              echo ":x: **Deploy fallito** (exit code $DEPLOY_RC)"
+            fi
+          } > "$LOG_FILE"
+          cat "$LOG_FILE"
+          exit $DEPLOY_RC
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
-      - name: Verifica app esiste
-        run: flyctl apps list | grep cassetta-htmltopdf || echo "⚠️ App non trovata nella lista"
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      - name: Committa diagnostica
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .github/deploy-status.md
+          git commit -m "ci: aggiorna deploy-status.md [skip ci]" || echo "Nessuna modifica"
+          git push || echo "Push fallito"
 
-      - name: Deploy
-        run: flyctl deploy --remote-only --wait-timeout 600 --verbose
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      - name: Esci con stato deploy
+        if: always()
+        run: exit ${{ steps.deploy.outcome == 'success' && 0 || 1 }}
