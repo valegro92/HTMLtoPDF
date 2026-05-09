@@ -149,62 +149,75 @@ app.post('/convert', async (req, res) => {
       margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' },
     };
 
+    // Estrai titolo SUBITO (prima di eventuali setContent che sostituiscono il DOM)
+    const docTitle = await page.evaluate(() => {
+      const h1 = document.querySelector('h1');
+      if (h1) return h1.textContent.trim();
+      const title = document.querySelector('title');
+      if (title) return title.textContent.trim();
+      return '';
+    });
+
     if (isAuto) {
-      // 1. Detect slide mode: 3 strategie (vertical, slider/carousel, deep search)
-      //    Saltato se singlePage=true → tratta sempre come pagina singola
-      let slideInfo = null;
+      // 1. Detect slide mode (skip se singlePage=true)
+      let slideCapture = null;
       if (!singlePage) {
         await page.addScriptTag({ content: SLIDE_DETECTION_JS });
-        slideInfo = await page.evaluate(() => {
+        slideCapture = await page.evaluate(() => {
           const result = window.__detectSlides();
-          if (!result) return null;
-
-          const { slideElements, slideW, slideH, wrapperEl } = result;
-
-          // Applica CSS per layout multi-pagina PDF
-          // 1. Imposta il wrapper come layout verticale (block)
-          document.body.style.margin = '0';
-          document.body.style.padding = '0';
-          document.body.style.display = 'block';
-          document.body.style.overflow = 'visible';
-
-          if (wrapperEl && wrapperEl !== document.body) {
-            wrapperEl.style.display = 'block';
-            wrapperEl.style.transform = 'none';
-            wrapperEl.style.overflow = 'visible';
-            wrapperEl.style.width = 'auto';
-            wrapperEl.style.height = 'auto';
-            wrapperEl.style.margin = '0';
-            wrapperEl.style.padding = '0';
-          }
-
-          // 2. Ogni slide diventa una pagina PDF
-          slideElements.forEach((el, i) => {
-            el.style.pageBreakAfter = (i < slideElements.length - 1) ? 'always' : 'auto';
-            el.style.pageBreakInside = 'avoid';
-            el.style.margin = '0';
-            el.style.boxShadow = 'none';
-            el.style.borderRadius = '0';
-            el.style.transform = 'none';
-            el.style.position = 'relative';
-            el.style.left = '0';
-            el.style.top = 'auto';
-            el.style.display = 'block';
-            el.style.width = slideW + 'px';
-            el.style.minHeight = slideH + 'px';
-            el.style.opacity = '1';
-            el.style.visibility = 'visible';
+          if (!result || !result.slideElements || result.slideElements.length < 2) return null;
+          const rects = result.slideElements.map(el => {
+            const r = el.getBoundingClientRect();
+            return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) };
           });
-
-          return { count: slideElements.length, w: Math.ceil(slideW), h: Math.ceil(slideH) };
+          const overlapping = rects.length >= 2 && Math.abs(rects[0].y - rects[1].y) < 10;
+          return { rects, overlapping, slideW: Math.ceil(result.slideW), slideH: Math.ceil(result.slideH) };
         });
       }
 
-      if (slideInfo) {
-        // Slide mode: una pagina PDF per ogni slide
-        console.log(`📄 PDF Slide mode: ${slideInfo.count} slide (${slideInfo.w}x${slideInfo.h}px)`);
-        pdfOpts.width = slideInfo.w + 'px';
-        pdfOpts.height = slideInfo.h + 'px';
+      if (slideCapture) {
+        // ═══ Slide mode: screenshot pixel-perfect per ogni slide → PDF assemblato ═══
+        console.log(`📄 PDF Slide mode (screenshot): ${slideCapture.rects.length} slide (${slideCapture.slideW}x${slideCapture.slideH}px)`);
+
+        const screenshots = [];
+        for (let i = 0; i < slideCapture.rects.length; i++) {
+          if (slideCapture.overlapping) {
+            await page.evaluate((idx) => {
+              const result = window.__detectSlides();
+              if (!result || !result.slideElements) return;
+              result.slideElements.forEach((el, j) => {
+                const visible = j === idx;
+                el.style.setProperty('visibility', visible ? 'visible' : 'hidden', 'important');
+                el.style.setProperty('opacity', visible ? '1' : '0', 'important');
+                el.style.setProperty('display', visible ? 'block' : 'none', 'important');
+              });
+            }, i);
+            await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+          }
+          const rect = slideCapture.overlapping ? slideCapture.rects[0] : slideCapture.rects[i];
+          const png = await page.screenshot({
+            type: 'png',
+            clip: { x: rect.x, y: rect.y, width: rect.w, height: rect.h },
+          });
+          screenshots.push(Buffer.from(png));
+        }
+
+        // Costruisci PDF: un wrapper HTML con un'immagine full-bleed per slide + page-break
+        const slideW = slideCapture.slideW;
+        const slideH = slideCapture.slideH;
+        const slidesHtml = screenshots.map(buf =>
+          `<div class="pdf-slide"><img src="data:image/png;base64,${buf.toString('base64')}"></div>`
+        ).join('');
+        const wrapperHtml = `<!DOCTYPE html><html><head><style>
+          *,*::before,*::after { margin:0; padding:0; box-sizing:border-box; }
+          html, body { background: #fff; }
+          .pdf-slide { width: ${slideW}px; height: ${slideH}px; page-break-after: always; page-break-inside: avoid; overflow: hidden; }
+          .pdf-slide:last-child { page-break-after: auto; }
+          .pdf-slide img { display: block; width: 100%; height: 100%; object-fit: cover; }
+        </style></head><body>${slidesHtml}</body></html>`;
+        await page.setContent(wrapperHtml, { waitUntil: 'load' });
+        pdfOpts.width = slideW + 'px';
+        pdfOpts.height = slideH + 'px';
 
       } else {
         // Pagina singola: logica Auto originale
@@ -266,14 +279,7 @@ app.post('/convert', async (req, res) => {
       pdfOpts.format = pageFormat;
     }
 
-    // Estrai titolo dal documento per il nome file
-    const docTitle = await page.evaluate(() => {
-      const h1 = document.querySelector('h1');
-      if (h1) return h1.textContent.trim();
-      const title = document.querySelector('title');
-      if (title) return title.textContent.trim();
-      return '';
-    });
+    // Nome file dal titolo (estratto prima di eventuali setContent)
     const safeName = docTitle
       ? docTitle.replace(/[^a-zA-Z0-9À-ÿ\s-]/g, '').replace(/\s+/g, '_').substring(0, 80)
       : 'output';
@@ -372,15 +378,20 @@ app.post('/convert-pptx', async (req, res) => {
 
       for (let i = 0; i < slideData.rects.length; i++) {
         // Per layout absolute-positioned: mostra solo la slide corrente
+        // Usa setProperty('important') per battere CSS .slide:not(.active) { visibility:hidden !important }
         if (slideData.overlapping) {
           await page.evaluate((idx) => {
             const result = window.__detectSlides(2);
             if (!result || !result.slideElements) return;
             result.slideElements.forEach((el, j) => {
-              el.style.visibility = j === idx ? 'visible' : 'hidden';
-              el.style.opacity = j === idx ? '1' : '0';
+              const visible = j === idx;
+              el.style.setProperty('visibility', visible ? 'visible' : 'hidden', 'important');
+              el.style.setProperty('opacity', visible ? '1' : '0', 'important');
+              el.style.setProperty('display', visible ? 'block' : 'none', 'important');
             });
           }, i);
+          // Aspetta 2 frame di repaint perché lo screenshot catturi lo stato aggiornato
+          await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
         }
 
         const rect = slideData.overlapping ? slideData.rects[0] : slideData.rects[i];
@@ -543,10 +554,13 @@ app.post('/convert-png', async (req, res) => {
             const result = window.__detectSlides(2);
             if (!result || !result.slideElements) return;
             result.slideElements.forEach((el, j) => {
-              el.style.visibility = j === idx ? 'visible' : 'hidden';
-              el.style.opacity = j === idx ? '1' : '0';
+              const visible = j === idx;
+              el.style.setProperty('visibility', visible ? 'visible' : 'hidden', 'important');
+              el.style.setProperty('opacity', visible ? '1' : '0', 'important');
+              el.style.setProperty('display', visible ? 'block' : 'none', 'important');
             });
           }, i);
+          await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
         }
         const rect = overlapping ? slideRects[0] : slideRects[i];
         const png = await page.screenshot({
