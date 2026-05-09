@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -11,14 +12,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Diagnostica ambiente
+        run: |
+          echo "=== Ambiente ==="
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "❌ FLY_API_TOKEN è VUOTO — il secret non è impostato correttamente"
+            exit 1
+          else
+            echo "✅ FLY_API_TOKEN presente (lunghezza: $(echo -n "$FLY_API_TOKEN" | wc -c) caratteri)"
+            echo "Prefisso token: $(echo "$FLY_API_TOKEN" | cut -c1-7)..."
+          fi
+          echo "=== fly.toml ==="
+          cat fly.toml
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Installa flyctl
+        run: |
+          curl -L https://fly.io/install.sh | sh
+          echo "$HOME/.fly/bin" >> $GITHUB_PATH
 
       - name: Verifica autenticazione
         run: flyctl auth whoami
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
-      - name: Deploy (build locale)
-        run: flyctl deploy --local-only --wait-timeout 300
+      - name: Verifica app esiste
+        run: flyctl apps list | grep cassetta-htmltopdf || echo "⚠️ App non trovata nella lista"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Deploy
+        run: flyctl deploy --remote-only --wait-timeout 600 --verbose
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
