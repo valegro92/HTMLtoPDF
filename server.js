@@ -320,183 +320,9 @@ app.post('/convert-pptx', async (req, res) => {
     const b = await getBrowser();
     page = await setupPage(b, html, PPTX_ALLOWED);
 
-    // ── FASE 1: Rileva tipo di contenuto e estrai dati ──
+    // ── FASE 1: Rileva tipo di contenuto ──
     await page.addScriptTag({ content: SLIDE_DETECTION_JS });
     const slideData = await page.evaluate(() => {
-      // ── Utilities ──
-      function rgbToHex(rgb) {
-        if (!rgb || rgb === 'transparent' || rgb === 'rgba(0, 0, 0, 0)') return null;
-        const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-        if (!m) return null;
-        return ((1 << 24) + (parseInt(m[1]) << 16) + (parseInt(m[2]) << 8) + parseInt(m[3]))
-          .toString(16).slice(1).toUpperCase();
-      }
-      function isTransparent(c) {
-        return !c || c === 'transparent' || c === 'rgba(0, 0, 0, 0)';
-      }
-      function mapFAIcon(className) {
-        const map = {
-          'fa-check': '✓', 'fa-file': '📄', 'fa-cubes': '🧊',
-          'fa-microscope': '🔬', 'fa-cloud': '☁', 'fa-recycle': '♻',
-          'fa-seedling': '🌱', 'fa-map': '📍', 'fa-envelope': '✉',
-          'fa-chart': '📊', 'fa-book': '📚', 'fa-helmet': '⛑',
-          'fa-users': '👥', 'fa-file-contract': '📋', 'fa-star': '⭐',
-          'fa-lightbulb': '💡', 'fa-gear': '⚙', 'fa-arrow': '→',
-          'fa-circle': '●', 'fa-square': '■', 'fa-heart': '♥',
-          'fa-phone': '📞', 'fa-globe': '🌐', 'fa-lock': '🔒',
-          'fa-rocket': '🚀', 'fa-wrench': '🔧', 'fa-shield': '🛡',
-        };
-        for (const [key, val] of Object.entries(map)) {
-          if (className.includes(key)) return val;
-        }
-        return '•';
-      }
-
-      function extractRichText(el) {
-        const parts = [];
-        function walkInline(node) {
-          if (node.nodeType === Node.TEXT_NODE) {
-            const text = node.textContent;
-            if (text.trim() || (text.includes(' ') && parts.length > 0)) {
-              const parent = node.parentElement;
-              const style = getComputedStyle(parent);
-              parts.push({
-                text, bold: parseInt(style.fontWeight) >= 600,
-                italic: style.fontStyle === 'italic',
-                color: rgbToHex(style.color) || '333333',
-                fontSize: Math.round(parseFloat(style.fontSize) * 0.75),
-              });
-            }
-          } else if (node.nodeType === Node.ELEMENT_NODE) {
-            const style = getComputedStyle(node);
-            if (style.display === 'none' || style.visibility === 'hidden') return;
-            if (node.tagName === 'I' && node.className && node.className.includes('fa-')) {
-              const iStyle = getComputedStyle(node);
-              parts.push({
-                text: mapFAIcon(node.className) + ' ', bold: false, italic: false,
-                color: rgbToHex(iStyle.color) || 'F39C12',
-                fontSize: Math.round(parseFloat(iStyle.fontSize) * 0.75),
-              });
-              return;
-            }
-            if (node.tagName === 'BR') {
-              parts.push({ text: '\n', bold: false, italic: false, color: '333333', fontSize: 12 });
-              return;
-            }
-            for (const child of node.childNodes) walkInline(child);
-          }
-        }
-        walkInline(el);
-        return parts;
-      }
-
-      function isTextBlock(el) {
-        const tag = el.tagName.toLowerCase();
-        if (['h1','h2','h3','h4','h5','h6','p','li','td','th','label','button'].includes(tag)) return true;
-        if (tag === 'div' || tag === 'span' || tag === 'a') {
-          for (const child of el.children) {
-            const d = getComputedStyle(child).display;
-            if (['block','flex','grid','table','list-item'].includes(d)) return false;
-          }
-          const hasText = Array.from(el.childNodes).some(n =>
-            n.nodeType === Node.TEXT_NODE && n.textContent.trim().length > 0
-          );
-          if (hasText) return true;
-          if (el.children.length > 0 && el.textContent.trim().length > 0) return true;
-        }
-        return false;
-      }
-
-      function extractSlide(slideEl, slideW, slideH) {
-        const slideRect = slideEl.getBoundingClientRect();
-        const elements = [];
-        const processed = new WeakSet();
-        function markProcessed(el) {
-          processed.add(el);
-          el.querySelectorAll('*').forEach(d => processed.add(d));
-        }
-        function walk(el) {
-          if (processed.has(el)) return;
-          const rect = el.getBoundingClientRect();
-          const style = getComputedStyle(el);
-          if (style.display === 'none' || style.visibility === 'hidden') return;
-          if (rect.width < 2 || rect.height < 2) return;
-          const x = rect.left - slideRect.left;
-          const y = rect.top - slideRect.top;
-          const w = rect.width;
-          const h = rect.height;
-          if (x + w < 0 || y + h < 0 || x > slideW + 10 || y > slideH + 10) return;
-
-          const bgColor = style.backgroundColor;
-          if (!isTransparent(bgColor) && el !== slideEl) {
-            const hex = rgbToHex(bgColor);
-            const slideBg = rgbToHex(getComputedStyle(slideEl).backgroundColor) || 'FFFFFF';
-            if (hex && hex !== slideBg) {
-              elements.push({ type: 'shape', x, y, w, h, fill: hex, borderRadius: parseFloat(style.borderRadius) || 0 });
-            }
-          }
-          const blWidth = parseFloat(style.borderLeftWidth);
-          if (blWidth >= 3 && !isTransparent(style.borderLeftColor)) {
-            elements.push({ type: 'shape', x, y, w: blWidth, h, fill: rgbToHex(style.borderLeftColor) || 'F39C12' });
-          }
-          if (el.tagName === 'HR') {
-            elements.push({ type: 'shape', x, y: y + h/2, w, h: 1, fill: rgbToHex(style.borderTopColor) || 'CCCCCC' });
-            markProcessed(el); return;
-          }
-          if (el.tagName === 'IMG') {
-            try {
-              const canvas = document.createElement('canvas');
-              canvas.width = rect.width;
-              canvas.height = rect.height;
-              const ctx = canvas.getContext('2d');
-              ctx.drawImage(el, 0, 0, rect.width, rect.height);
-              const dataUrl = canvas.toDataURL('image/png');
-              elements.push({ type: 'image', x, y, w: rect.width, h: rect.height, dataUrl });
-            } catch (e) { /* cross-origin: skip */ }
-            markProcessed(el); return;
-          }
-          if (el.tagName === 'CANVAS') {
-            try {
-              const dataUrl = el.toDataURL('image/png');
-              if (dataUrl && dataUrl !== 'data:,') {
-                elements.push({ type: 'image', x, y, w, h, dataUrl });
-              }
-            } catch (_) {}
-            markProcessed(el); return;
-          }
-          if (el.tagName === 'SVG') {
-            try {
-              const svgData = new XMLSerializer().serializeToString(el);
-              const b64 = btoa(unescape(encodeURIComponent(svgData)));
-              elements.push({ type: 'image', x, y, w, h, dataUrl: 'data:image/svg+xml;base64,' + b64 });
-            } catch (_) {}
-            markProcessed(el); return;
-          }
-          if (isTextBlock(el)) {
-            const fullText = el.textContent.trim();
-            if (fullText) {
-              const richParts = extractRichText(el);
-              if (richParts.length > 0) {
-                let align = style.textAlign;
-                if (style.display === 'flex' && style.justifyContent === 'center') align = 'center';
-                let valign = 'top';
-                const ps = el.parentElement ? getComputedStyle(el.parentElement) : null;
-                if (ps && ps.display === 'flex' && ps.alignItems === 'center') valign = 'middle';
-                elements.push({ type: 'text', x, y, w, h, parts: richParts,
-                  align: align === 'center' ? 'center' : align === 'right' ? 'right' : 'left',
-                  valign, isBullet: el.tagName === 'LI' });
-                markProcessed(el);
-              }
-            }
-            return;
-          }
-          for (const child of el.children) walk(child);
-        }
-        walk(slideEl);
-        return { bgColor: rgbToHex(getComputedStyle(slideEl).backgroundColor) || 'FFFFFF', elements };
-      }
-
-      // ── Titolo documento ──
       const docTitle = (() => {
         const h1 = document.querySelector('h1');
         if (h1) return h1.textContent.trim();
@@ -505,26 +331,19 @@ app.post('/convert-pptx', async (req, res) => {
         return 'Presentazione';
       })();
 
-      // ── DETECTION: soglia 2 slide (sufficiente per PPTX nativo) ──
       const detection = window.__detectSlides(2);
 
-      // ── Se trovate slide → estrai contenuto nativo ──
       if (detection && detection.slideElements && detection.slideElements.length >= 2) {
         const { slideElements, slideW, slideH } = detection;
-        // Force all slides visible (handles visibility:hidden / opacity:0 in JS presentations)
-        slideElements.forEach(function(el) {
-          el.style.visibility = 'visible';
-          el.style.opacity = '1';
+        const rects = slideElements.map(el => {
+          const r = el.getBoundingClientRect();
+          return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) };
         });
-        return {
-          mode: 'slides',
-          title: docTitle,
-          slideW, slideH,
-          slides: slideElements.map(el => extractSlide(el, slideW, slideH)),
-        };
+        // Slide absolute-positioned (JS presentation): same y → screenshot one at a time
+        const overlapping = rects.length >= 2 && Math.abs(rects[0].y - rects[1].y) < 10;
+        return { mode: 'slides', title: docTitle, slideW, slideH, rects, overlapping };
       }
 
-      // ── Nessuna slide → modalità screenshot ──
       return {
         mode: 'screenshot',
         title: docTitle,
@@ -543,53 +362,40 @@ app.post('/convert-pptx', async (req, res) => {
     pptx.title = docTitle;
 
     if (slideData.mode === 'slides') {
-      // ═══ MODALITÀ SLIDE NATIVE (editabili) ═══
+      // ═══ MODALITÀ SLIDE: screenshot pixel-perfect per ogni slide ═══
       const inchW = slideData.slideW / 96;
       const inchH = slideData.slideH / 96;
       pptx.defineLayout({ name: 'CUSTOM', width: inchW, height: inchH });
       pptx.layout = 'CUSTOM';
-      const sx = inchW / slideData.slideW;
-      const sy = inchH / slideData.slideH;
 
-      console.log(`📊 Modalità SLIDE: ${slideData.slides.length} slide (${slideData.slideW}x${slideData.slideH}px)`);
+      console.log(`📊 PPTX Slide mode: ${slideData.rects.length} slide (${slideData.slideW}x${slideData.slideH}px)`);
 
-      for (const slideInfo of slideData.slides) {
-        const slide = pptx.addSlide();
-        slide.background = { color: slideInfo.bgColor };
-
-        for (const el of slideInfo.elements) {
-          if (el.type === 'shape') {
-            const opts = {
-              x: el.x * sx, y: el.y * sy, w: el.w * sx, h: el.h * sy,
-              fill: { color: el.fill },
-            };
-            if (el.borderRadius > 0) opts.rectRadius = Math.min(el.borderRadius * sx, 0.3);
-            slide.addShape('rect', opts);
-          }
-          if (el.type === 'image') {
-            slide.addImage({
-              data: el.dataUrl,
-              x: el.x * sx, y: el.y * sy,
-              w: el.w * sx, h: el.h * sy,
+      for (let i = 0; i < slideData.rects.length; i++) {
+        // Per layout absolute-positioned: mostra solo la slide corrente
+        if (slideData.overlapping) {
+          await page.evaluate((idx) => {
+            const result = window.__detectSlides(2);
+            if (!result || !result.slideElements) return;
+            result.slideElements.forEach((el, j) => {
+              el.style.visibility = j === idx ? 'visible' : 'hidden';
+              el.style.opacity = j === idx ? '1' : '0';
             });
-          }
-          if (el.type === 'text') {
-            const textParts = el.parts.map(p => ({
-              text: p.text,
-              options: {
-                bold: p.bold, italic: p.italic, color: p.color,
-                fontSize: Math.max(p.fontSize, 6), fontFace: 'Open Sans',
-              },
-            }));
-            if (textParts.length === 0) continue;
-            slide.addText(textParts, {
-              x: el.x * sx, y: el.y * sy,
-              w: Math.max(el.w * sx, 0.5), h: Math.max(el.h * sy, 0.3),
-              align: el.align || 'left', valign: el.valign || 'top',
-              wrap: true, margin: [2, 4, 2, 4], paraSpaceAfter: 2,
-            });
-          }
+          }, i);
         }
+
+        const rect = slideData.overlapping ? slideData.rects[0] : slideData.rects[i];
+        const screenshotRaw = await page.screenshot({
+          type: 'png',
+          clip: { x: rect.x, y: rect.y, width: rect.w, height: rect.h },
+        });
+        const screenshotB64 = Buffer.from(screenshotRaw).toString('base64');
+
+        const slide = pptx.addSlide();
+        slide.addImage({
+          data: `image/png;base64,${screenshotB64}`,
+          x: 0, y: 0,
+          w: inchW, h: inchH,
+        });
       }
 
     } else {
