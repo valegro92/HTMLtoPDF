@@ -17,168 +17,162 @@
       overflow: hidden;
     }
 
+    /* ── Header ── */
     header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 12px 20px;
+      padding: 10px 20px;
       background: #2e2e2e;
       border-bottom: 1px solid #1f5c5c;
       flex-shrink: 0;
+      gap: 16px;
     }
-
-    header h1 {
-      font-size: 16px;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-    }
-
-    header h1 span { color: #2bb5a3; }
 
     .logo-link {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
       text-decoration: none;
       color: #e0e0e0;
       flex-shrink: 0;
     }
 
-    .logo-link img {
-      height: 32px;
-      width: auto;
-      border-radius: 6px;
-    }
+    .logo-link img { height: 28px; width: auto; border-radius: 6px; }
 
+    header h1 { font-size: 15px; font-weight: 600; letter-spacing: 0.3px; white-space: nowrap; }
+    header h1 span { color: #2bb5a3; }
+
+    /* ── Controls: due gruppi separati ── */
     .controls {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 8px;
+      flex: 1;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .ctrl-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ctrl-sep {
+      width: 1px;
+      height: 24px;
+      background: #444;
+      flex-shrink: 0;
     }
 
     select {
-      background: #4a4a4a;
+      background: #3e3e3e;
       color: #e0e0e0;
       border: 1px solid #555;
       border-radius: 6px;
-      padding: 6px 10px;
-      font-size: 13px;
+      padding: 5px 8px;
+      font-size: 12px;
       cursor: pointer;
       outline: none;
     }
-
     select:focus { border-color: #2bb5a3; }
 
     .toggle-label {
       display: flex;
       align-items: center;
-      gap: 8px;
-      font-size: 13px;
+      gap: 6px;
+      font-size: 12px;
       color: #aaa;
       cursor: pointer;
       user-select: none;
+      white-space: nowrap;
     }
 
-    .toggle {
-      position: relative;
-      width: 36px;
-      height: 20px;
-      flex-shrink: 0;
-    }
-
+    .toggle { position: relative; width: 32px; height: 18px; flex-shrink: 0; }
     .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
-
     .toggle-track {
       position: absolute;
       inset: 0;
       background: #555;
-      border-radius: 10px;
+      border-radius: 9px;
       transition: background 0.2s;
     }
-
     .toggle input:checked + .toggle-track { background: #2bb5a3; }
-
     .toggle-track::after {
       content: '';
       position: absolute;
-      top: 2px;
-      left: 2px;
-      width: 16px;
-      height: 16px;
+      top: 2px; left: 2px;
+      width: 14px; height: 14px;
       background: #fff;
       border-radius: 50%;
       transition: transform 0.2s;
     }
+    .toggle input:checked + .toggle-track::after { transform: translateX(14px); }
 
-    .toggle input:checked + .toggle-track::after { transform: translateX(16px); }
-
-    button#generate, button#generatePptx, button#generatePng {
+    /* ── Export buttons ── */
+    .export-btn {
       color: #fff;
       border: none;
       border-radius: 6px;
-      padding: 8px 18px;
-      font-size: 13px;
+      padding: 6px 14px;
+      font-size: 12px;
       font-weight: 600;
       cursor: pointer;
       display: flex;
       align-items: center;
-      gap: 8px;
-      transition: background 0.2s;
+      gap: 6px;
+      transition: background 0.15s, opacity 0.15s;
+      white-space: nowrap;
     }
+    .export-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-    button#generate { background: #2bb5a3; }
-    button#generate:hover { background: #1f9e8f; }
-
-    button#generatePptx { background: #c05621; }
-    button#generatePptx:hover { background: #a04418; }
-
-    button#generatePng { background: #6d28d9; }
-    button#generatePng:hover { background: #5b21b6; }
-
-    button#generate:disabled, button#generatePptx:disabled, button#generatePng:disabled { opacity: 0.6; cursor: not-allowed; }
-
-    #formatHint {
-      display: none;
-      align-items: center;
-      gap: 8px;
-      background: rgba(43, 181, 163, 0.12);
-      border-left: 3px solid #2bb5a3;
-      font-size: 12px;
-      padding: 6px 12px;
-      color: #e0e0e0;
-      flex-shrink: 0;
-      border-radius: 0 4px 4px 0;
-    }
-
-    #formatHint.visible { display: flex; }
-
-    #formatHintClose {
-      background: none;
-      border: none;
-      color: #aaa;
-      cursor: pointer;
-      font-size: 14px;
-      padding: 0 0 0 4px;
-      line-height: 1;
-    }
-
-    #formatHintClose:hover { color: #e0e0e0; }
+    #generate    { background: #2bb5a3; }
+    #generate:hover:not(:disabled)    { background: #1f9e8f; }
+    #generatePptx { background: #c05621; }
+    #generatePptx:hover:not(:disabled) { background: #a04418; }
+    #generatePng  { background: #6d28d9; }
+    #generatePng:hover:not(:disabled)  { background: #5b21b6; }
 
     .spinner {
-      width: 14px;
-      height: 14px;
+      width: 12px; height: 12px;
       border: 2px solid rgba(255,255,255,0.3);
       border-top-color: #fff;
       border-radius: 50%;
       animation: spin 0.6s linear infinite;
       display: none;
     }
-
-    button.loading .spinner { display: block; }
-    button.loading .btn-text { display: none; }
-
+    .export-btn.loading .spinner { display: block; }
+    .export-btn.loading .btn-text { display: none; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* ── Format hint bar ── */
+    #hintBar {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 20px;
+      background: rgba(43, 181, 163, 0.10);
+      border-bottom: 1px solid rgba(43, 181, 163, 0.25);
+      font-size: 12px;
+      color: #b0e0da;
+      flex-shrink: 0;
+    }
+    #hintBar.visible { display: flex; }
+    #hintBar .hint-icon { font-size: 14px; }
+    #hintBar .hint-close {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: #777;
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      padding: 0 4px;
+    }
+    #hintBar .hint-close:hover { color: #e0e0e0; }
+
+    /* ── Panels ── */
     .panels {
       display: flex;
       flex: 1;
@@ -186,67 +180,172 @@
     }
 
     .panel {
-      flex: 1;
       display: flex;
       flex-direction: column;
       min-width: 0;
+      overflow: hidden;
     }
+
+    #editorPanel { flex: 0 0 50%; }
+    #previewPanel { flex: 1; }
 
     .panel-header {
-      padding: 8px 16px;
-      font-size: 11px;
-      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 14px;
+      font-size: 10px;
+      font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 1px;
-      color: #888;
-      background: #333;
-      border-bottom: 1px solid #1f5c5c;
+      color: #666;
+      background: #2e2e2e;
+      border-bottom: 1px solid #3a3a3a;
       flex-shrink: 0;
+      min-height: 30px;
     }
 
+    .panel-header-actions { display: flex; align-items: center; gap: 8px; }
+
+    #charCount { font-size: 10px; color: #555; font-weight: 400; text-transform: none; letter-spacing: 0; }
+
+    #clearBtn {
+      background: none;
+      border: none;
+      color: #555;
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
+      padding: 0 2px;
+      display: none;
+    }
+    #clearBtn:hover { color: #aaa; }
+    #clearBtn.visible { display: block; }
+
+    /* ── Resizable divider ── */
     .divider {
-      width: 1px;
-      background: #1f5c5c;
+      width: 4px;
+      background: #2a2a2a;
       flex-shrink: 0;
+      cursor: col-resize;
+      transition: background 0.15s;
+      position: relative;
+    }
+    .divider:hover, .divider.dragging { background: #2bb5a3; }
+
+    /* ── Editor ── */
+    #editorWrap {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
     }
 
     textarea#htmlInput {
-      flex: 1;
-      background: #333;
+      position: absolute;
+      inset: 0;
+      background: #1e1e1e;
       color: #d4d4d4;
       border: none;
-      padding: 16px;
+      padding: 14px 16px;
       font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
       font-size: 13px;
-      line-height: 1.6;
+      line-height: 1.65;
       resize: none;
       outline: none;
       tab-size: 2;
+      width: 100%;
+      height: 100%;
     }
+    textarea#htmlInput::placeholder { color: #444; }
 
-    textarea#htmlInput::placeholder { color: #555; }
+    /* Drag-over overlay */
+    #dropOverlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(43, 181, 163, 0.15);
+      border: 2px dashed #2bb5a3;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 15px;
+      color: #2bb5a3;
+      pointer-events: none;
+      z-index: 10;
+    }
+    #dropOverlay.active { display: flex; }
+    #dropOverlay .drop-icon { font-size: 32px; }
 
+    /* ── Empty state ── */
+    #emptyState {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      pointer-events: none;
+    }
+    #emptyState.hidden { display: none; }
+    #emptyState p { font-size: 13px; color: #444; text-align: center; line-height: 1.5; }
+    #emptyState kbd {
+      display: inline-block;
+      background: #333;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 11px;
+      color: #888;
+      font-family: inherit;
+    }
+    #tryExampleBtn {
+      pointer-events: all;
+      background: none;
+      border: 1px solid #444;
+      border-radius: 6px;
+      color: #777;
+      font-size: 12px;
+      padding: 6px 14px;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    #tryExampleBtn:hover { border-color: #2bb5a3; color: #2bb5a3; }
+
+    /* ── Preview ── */
     iframe#preview {
       flex: 1;
       border: none;
       background: #fff;
     }
 
-    .error-toast {
+    /* ── Toast ── */
+    .toast {
       position: fixed;
-      bottom: 20px;
+      bottom: 24px;
       left: 50%;
-      transform: translateX(-50%) translateY(100px);
-      background: #dc2626;
+      transform: translateX(-50%) translateY(80px);
       color: #fff;
       padding: 10px 20px;
       border-radius: 8px;
       font-size: 13px;
-      transition: transform 0.3s ease;
-      z-index: 100;
+      font-weight: 500;
+      transition: transform 0.25s ease;
+      z-index: 200;
+      pointer-events: none;
+      white-space: nowrap;
     }
+    .toast.visible { transform: translateX(-50%) translateY(0); }
+    .toast.error { background: #dc2626; }
+    .toast.success { background: #16a34a; }
 
-    .error-toast.visible { transform: translateX(-50%) translateY(0); }
+    /* ── Keyboard shortcut hint ── */
+    .shortcut-hint {
+      font-size: 10px;
+      color: #555;
+      margin-left: 4px;
+    }
   </style>
 </head>
 <body>
@@ -254,158 +353,311 @@
   <header>
     <a href="/" class="logo-link">
       <img src="/logo.jpg" alt="La Cassetta degli AI-trezzi">
-      <h1>HTML <span>→</span> PDF Converter</h1>
+      <h1>HTML <span>→</span> PDF</h1>
     </a>
+
     <div class="controls">
-      <label class="toggle-label" id="singlePageLabel">
-        <span class="toggle">
-          <input type="checkbox" id="singlePageToggle">
-          <span class="toggle-track"></span>
-        </span>
-        Pagina singola
-      </label>
-      <label class="toggle-label">
-        <span class="toggle">
-          <input type="checkbox" id="fitToggle">
-          <span class="toggle-track"></span>
-        </span>
-        Adatta a pagina
-      </label>
-      <select id="formatSelect">
-        <option value="Auto">Auto (contenuto)</option>
-        <option value="A4">A4</option>
-        <option value="Letter">Letter</option>
-        <option value="A3">A3</option>
-      </select>
-      <button id="generate">
-        <span class="btn-text">📄 PDF</span>
-        <div class="spinner"></div>
-      </button>
-      <button id="generatePptx">
-        <span class="btn-text">📊 PPTX</span>
-        <div class="spinner"></div>
-      </button>
-      <button id="generatePng">
-        <span class="btn-text">🖼 PNG</span>
-        <div class="spinner"></div>
-      </button>
-      <div id="formatHint">
-        <span id="formatHintText"></span>
-        <button id="formatHintClose" title="Chiudi">×</button>
+      <!-- Gruppo opzioni formato -->
+      <div class="ctrl-group" id="formatGroup">
+        <label class="toggle-label" id="singlePageLabel">
+          <span class="toggle">
+            <input type="checkbox" id="singlePageToggle">
+            <span class="toggle-track"></span>
+          </span>
+          Pagina singola
+        </label>
+        <label class="toggle-label" id="fitLabel">
+          <span class="toggle">
+            <input type="checkbox" id="fitToggle">
+            <span class="toggle-track"></span>
+          </span>
+          Adatta
+        </label>
+        <select id="formatSelect">
+          <option value="Auto">Auto</option>
+          <option value="A4">A4</option>
+          <option value="Letter">Letter</option>
+          <option value="A3">A3</option>
+        </select>
+      </div>
+
+      <div class="ctrl-sep"></div>
+
+      <!-- Gruppo export -->
+      <div class="ctrl-group">
+        <button id="generate" class="export-btn" title="Genera PDF (⌘ Enter)">
+          <span class="btn-text">📄 PDF</span>
+          <div class="spinner"></div>
+        </button>
+        <button id="generatePptx" class="export-btn">
+          <span class="btn-text">📊 PPTX</span>
+          <div class="spinner"></div>
+        </button>
+        <button id="generatePng" class="export-btn">
+          <span class="btn-text">🖼 PNG</span>
+          <div class="spinner"></div>
+        </button>
       </div>
     </div>
   </header>
 
-  <div class="panels">
-    <div class="panel">
-      <div class="panel-header">HTML</div>
-      <textarea id="htmlInput" placeholder="Incolla il tuo HTML qui..." spellcheck="false"></textarea>
+  <!-- Hint bar (sotto header, sopra pannelli) -->
+  <div id="hintBar">
+    <span class="hint-icon">💡</span>
+    <span id="hintText"></span>
+    <button class="hint-close" id="hintClose" title="Chiudi">×</button>
+  </div>
+
+  <div class="panels" id="panels">
+    <!-- Pannello editor -->
+    <div class="panel" id="editorPanel">
+      <div class="panel-header">
+        <span>Editor HTML</span>
+        <div class="panel-header-actions">
+          <span id="charCount"></span>
+          <button id="clearBtn" title="Svuota editor">×</button>
+        </div>
+      </div>
+      <div id="editorWrap">
+        <textarea id="htmlInput" placeholder="" spellcheck="false" autocomplete="off"></textarea>
+        <div id="dropOverlay">
+          <span class="drop-icon">📂</span>
+          <span>Rilascia il file HTML</span>
+        </div>
+        <div id="emptyState">
+          <p>Incolla HTML qui<br><kbd>⌘V</kbd> · oppure trascina un file <kbd>.html</kbd></p>
+          <button id="tryExampleBtn">Prova un esempio</button>
+        </div>
+      </div>
     </div>
-    <div class="divider"></div>
-    <div class="panel">
-      <div class="panel-header">Anteprima</div>
+
+    <!-- Divider ridimensionabile -->
+    <div class="divider" id="divider"></div>
+
+    <!-- Pannello anteprima -->
+    <div class="panel" id="previewPanel">
+      <div class="panel-header">
+        <span>Anteprima</span>
+        <span id="previewMeta"></span>
+      </div>
       <iframe id="preview" sandbox="allow-same-origin allow-scripts"></iframe>
     </div>
   </div>
 
-  <div class="error-toast" id="errorToast"></div>
+  <div class="toast" id="toast"></div>
 
   <script>
-    const htmlInput = document.getElementById('htmlInput');
-    const preview = document.getElementById('preview');
-    const generateBtn = document.getElementById('generate');
-    const generatePptxBtn = document.getElementById('generatePptx');
-    const generatePngBtn = document.getElementById('generatePng');
-    const formatSelect = document.getElementById('formatSelect');
-    const fitToggle = document.getElementById('fitToggle');
-    const singlePageToggle = document.getElementById('singlePageToggle');
+    // ── Refs ──
+    const htmlInput      = document.getElementById('htmlInput');
+    const preview        = document.getElementById('preview');
+    const generateBtn    = document.getElementById('generate');
+    const pptxBtn        = document.getElementById('generatePptx');
+    const pngBtn         = document.getElementById('generatePng');
+    const formatSelect   = document.getElementById('formatSelect');
+    const fitToggle      = document.getElementById('fitToggle');
+    const singleToggle   = document.getElementById('singlePageToggle');
     const singlePageLabel = document.getElementById('singlePageLabel');
-    const errorToast = document.getElementById('errorToast');
-    const formatHint = document.getElementById('formatHint');
-    const formatHintText = document.getElementById('formatHintText');
-    const formatHintClose = document.getElementById('formatHintClose');
+    const fitLabel       = document.getElementById('fitLabel');
+    const hintBar        = document.getElementById('hintBar');
+    const hintText       = document.getElementById('hintText');
+    const hintClose      = document.getElementById('hintClose');
+    const charCount      = document.getElementById('charCount');
+    const clearBtn       = document.getElementById('clearBtn');
+    const emptyState     = document.getElementById('emptyState');
+    const dropOverlay    = document.getElementById('dropOverlay');
+    const editorWrap     = document.getElementById('editorWrap');
+    const toast          = document.getElementById('toast');
+    const previewMeta    = document.getElementById('previewMeta');
+    const tryExampleBtn  = document.getElementById('tryExampleBtn');
+    const divider        = document.getElementById('divider');
+    const editorPanel    = document.getElementById('editorPanel');
+    const panels         = document.getElementById('panels');
 
     let debounceTimer = null;
     let hintDismissed = false;
-    const fitLabel = fitToggle.closest('.toggle-label');
+    let toastTimer = null;
 
-    function updateFitVisibility() {
+    // ── Toast ──
+    function showToast(msg, type = 'error') {
+      clearTimeout(toastTimer);
+      toast.textContent = msg;
+      toast.className = `toast ${type} visible`;
+      toastTimer = setTimeout(() => toast.classList.remove('visible'), 3500);
+    }
+
+    // ── Format toggles visibility ──
+    function updateFormatUI() {
       const isAuto = formatSelect.value === 'Auto';
-      fitLabel.style.display = isAuto ? 'none' : 'flex';
+      fitLabel.style.display      = isAuto ? 'none' : 'flex';
       singlePageLabel.style.display = isAuto ? 'flex' : 'none';
     }
-    formatSelect.addEventListener('change', updateFitVisibility);
-    updateFitVisibility();
+    formatSelect.addEventListener('change', updateFormatUI);
+    updateFormatUI();
 
+    // ── Editor state ──
+    function updateEditorMeta() {
+      const val = htmlInput.value;
+      const len = val.length;
+      charCount.textContent = len > 0 ? `${len.toLocaleString('it')} car.` : '';
+      clearBtn.classList.toggle('visible', len > 0);
+      emptyState.classList.toggle('hidden', len > 0);
+    }
+
+    clearBtn.addEventListener('click', () => {
+      htmlInput.value = '';
+      updateEditorMeta();
+      preview.srcdoc = '';
+      hintBar.classList.remove('visible');
+      previewMeta.textContent = '';
+    });
+
+    // ── Format hint ──
+    function suggestFormat(html) {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const slides = doc.querySelectorAll('section, [class*="slide"], [class*="page"]');
+      if (slides.length >= 2) return 'pptx';
+      if (doc.querySelectorAll('img').length >= 3) return 'png';
+      return 'pdf';
+    }
+
+    const hintMap = {
+      pptx: 'Sembra una presentazione — consigliato <strong>PPTX</strong>',
+      png:  'Contenuto ricco di immagini — consigliato <strong>PNG</strong>',
+      pdf:  'Documento generico — consigliato <strong>PDF</strong>',
+    };
+
+    function updateHint(html) {
+      if (!html.trim() || hintDismissed) { hintBar.classList.remove('visible'); return; }
+      const fmt = suggestFormat(html);
+      hintText.innerHTML = hintMap[fmt];
+      hintBar.classList.add('visible');
+    }
+
+    hintClose.addEventListener('click', () => {
+      hintBar.classList.remove('visible');
+      hintDismissed = true;
+    });
+
+    // ── Live preview ──
     function updatePreview() {
       const html = htmlInput.value;
       const doc = preview.contentDocument;
       if (!doc) return;
-      doc.open();
-      doc.write(html);
-      doc.close();
+      doc.open(); doc.write(html); doc.close();
+
+      // Mostra info base nell'header preview
+      try {
+        const parsed = new DOMParser().parseFromString(html, 'text/html');
+        const title = parsed.querySelector('title')?.textContent?.trim() || '';
+        previewMeta.textContent = title ? `· ${title}` : '';
+        previewMeta.style.color = '#555';
+        previewMeta.style.fontSize = '10px';
+        previewMeta.style.fontWeight = '400';
+        previewMeta.style.textTransform = 'none';
+        previewMeta.style.letterSpacing = '0';
+      } catch {}
     }
-
-    // ── Format hint ──
-    function suggestFormat(html) {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
-      const candidates = Array.from(doc.querySelectorAll('section, [class*="slide"], [class*="page"]'));
-      if (candidates.length >= 2) return 'pptx';
-      const imgs = doc.querySelectorAll('img');
-      if (imgs.length >= 3) return 'png';
-      return 'pdf';
-    }
-
-    const hintMessages = {
-      pptx: '💡 Sembra una presentazione → consigliato PPTX',
-      png:  '💡 Contenuto ricco di immagini → consigliato PNG',
-      pdf:  '💡 Documento generico → consigliato PDF',
-    };
-
-    function updateFormatHint(html) {
-      if (!html.trim()) {
-        formatHint.classList.remove('visible');
-        return;
-      }
-      if (hintDismissed) return;
-      const suggestion = suggestFormat(html);
-      formatHintText.textContent = hintMessages[suggestion];
-      formatHint.classList.add('visible');
-    }
-
-    formatHintClose.addEventListener('click', () => {
-      formatHint.classList.remove('visible');
-      hintDismissed = true;
-    });
 
     htmlInput.addEventListener('input', () => {
       clearTimeout(debounceTimer);
       hintDismissed = false;
+      updateEditorMeta();
       debounceTimer = setTimeout(() => {
         updatePreview();
-        updateFormatHint(htmlInput.value);
+        updateHint(htmlInput.value);
       }, 400);
     });
 
-    function showError(msg) {
-      errorToast.textContent = msg;
-      errorToast.classList.add('visible');
-      setTimeout(() => errorToast.classList.remove('visible'), 4000);
+    // ── Drag & drop file HTML ──
+    editorWrap.addEventListener('dragover', e => {
+      e.preventDefault();
+      dropOverlay.classList.add('active');
+    });
+    editorWrap.addEventListener('dragleave', () => dropOverlay.classList.remove('active'));
+    editorWrap.addEventListener('drop', e => {
+      e.preventDefault();
+      dropOverlay.classList.remove('active');
+      const file = e.dataTransfer?.files?.[0];
+      if (!file) return;
+      if (!file.name.endsWith('.html') && !file.name.endsWith('.htm') && file.type !== 'text/html') {
+        showToast('Trascina un file .html');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = ev => {
+        htmlInput.value = ev.target.result;
+        htmlInput.dispatchEvent(new Event('input'));
+      };
+      reader.readAsText(file);
+    });
+
+    // ── Esempio starter ──
+    const EXAMPLE_HTML = `<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Esempio Infografica</title>
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; background: #1a1a2e; color: #e0e0e0; }
+    .slide { width: 800px; height: 450px; display: flex; flex-direction: column;
+             align-items: center; justify-content: center; padding: 40px; text-align: center; }
+    h1 { font-size: 2.5rem; color: #2bb5a3; margin-bottom: 16px; }
+    p  { font-size: 1.1rem; color: #aaa; max-width: 500px; line-height: 1.6; }
+    .badge { background: #2bb5a3; color: #fff; padding: 6px 18px;
+             border-radius: 20px; font-size: 0.85rem; margin-top: 24px; }
+  </style>
+</head>
+<body>
+  <div class="slide">
+    <h1>Benvenuto 👋</h1>
+    <p>Questo è un esempio di infografica generata con HTML. Prova a esportarla in PDF, PPTX o PNG!</p>
+    <span class="badge">La Cassetta degli AI-trezzi</span>
+  </div>
+</body>
+</html>`;
+
+    tryExampleBtn.addEventListener('click', () => {
+      htmlInput.value = EXAMPLE_HTML;
+      htmlInput.dispatchEvent(new Event('input'));
+      htmlInput.focus();
+    });
+
+    // ── Shortcut ⌘/Ctrl+Enter → PDF ──
+    document.addEventListener('keydown', e => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        generateBtn.click();
+      }
+    });
+
+    // ── Download helper ──
+    function triggerDownload(blob, fileName) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = fileName;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
     }
 
-    generateBtn.addEventListener('click', async () => {
-      const html = htmlInput.value.trim();
-      if (!html) { showError('Inserisci del codice HTML prima di generare.'); return; }
+    function getFileName(res, fallback) {
+      const d = res.headers.get('Content-Disposition') || '';
+      const m = d.match(/filename="(.+?)"/);
+      return m ? m[1] : fallback;
+    }
 
-      generateBtn.classList.add('loading');
-      generateBtn.disabled = true;
+    // ── Generic export ──
+    async function doExport(btn, endpoint, body, fallbackName, successMsg) {
+      const html = htmlInput.value.trim();
+      if (!html) { showToast('Incolla del codice HTML prima di esportare.'); return; }
+
+      btn.classList.add('loading');
+      btn.disabled = true;
 
       try {
-        const res = await fetch('/convert', {
+        const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ html, format: formatSelect.value, fitToPage: fitToggle.checked, singlePage: singlePageToggle.checked }),
+          body: JSON.stringify({ html, ...body }),
         });
 
         if (!res.ok) {
@@ -413,114 +665,67 @@
           throw new Error(err.error);
         }
 
-        // Estrai nome file dal Content-Disposition del server
-        const disposition = res.headers.get('Content-Disposition') || '';
-        const match = disposition.match(/filename="(.+?)"/);
-        const fileName = match ? match[1] : 'output.pdf';
-
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-      } catch (err) {
-        showError(err.message);
-      } finally {
-        generateBtn.classList.remove('loading');
-        generateBtn.disabled = false;
-      }
-    });
-    // ── PPTX download ──
-    generatePptxBtn.addEventListener('click', async () => {
-      const html = htmlInput.value.trim();
-      if (!html) { showError('Inserisci del codice HTML prima di generare.'); return; }
-
-      generatePptxBtn.classList.add('loading');
-      generatePptxBtn.disabled = true;
-
-      try {
-        const res = await fetch('/convert-pptx', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ html }),
-        });
-
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({ error: 'Errore sconosciuto' }));
-          throw new Error(err.error);
-        }
-
-        const disposition = res.headers.get('Content-Disposition') || '';
-        const match = disposition.match(/filename="(.+?)"/);
-        const fileName = match ? match[1] : 'presentazione.pptx';
-
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-      } catch (err) {
-        showError(err.message);
-      } finally {
-        generatePptxBtn.classList.remove('loading');
-        generatePptxBtn.disabled = false;
-      }
-    });
-
-    // ── PNG download ──
-    generatePngBtn.addEventListener('click', async () => {
-      const html = htmlInput.value.trim();
-      if (!html) { showError('Inserisci del codice HTML prima di generare.'); return; }
-
-      generatePngBtn.classList.add('loading');
-      generatePngBtn.disabled = true;
-
-      try {
-        const res = await fetch('/convert-png', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ html }),
-        });
-
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({ error: 'Errore sconosciuto' }));
-          throw new Error(err.error);
-        }
-
-        const contentType = res.headers.get('Content-Type') || '';
-        const disposition = res.headers.get('Content-Disposition') || '';
-        const match = disposition.match(/filename="(.+?)"/);
-        let fileName;
-        if (contentType.includes('application/zip')) {
-          fileName = match ? match[1] : 'immagini.zip';
+        // PNG può tornare ZIP o PNG singolo
+        let fileName = fallbackName;
+        if (endpoint === '/convert-png') {
+          const ct = res.headers.get('Content-Type') || '';
+          fileName = ct.includes('zip')
+            ? getFileName(res, 'slide.zip')
+            : getFileName(res, 'immagine.png');
         } else {
-          fileName = match ? match[1] : 'immagine.png';
+          fileName = getFileName(res, fallbackName);
         }
 
         const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
+        triggerDownload(blob, fileName);
+        showToast(successMsg, 'success');
       } catch (err) {
-        showError(err.message);
+        showToast(err.message, 'error');
       } finally {
-        generatePngBtn.classList.remove('loading');
-        generatePngBtn.disabled = false;
+        btn.classList.remove('loading');
+        btn.disabled = false;
       }
+    }
+
+    generateBtn.addEventListener('click', () =>
+      doExport(generateBtn, '/convert',
+        { format: formatSelect.value, fitToPage: fitToggle.checked, singlePage: singleToggle.checked },
+        'output.pdf', '✅ PDF pronto!')
+    );
+
+    pptxBtn.addEventListener('click', () =>
+      doExport(pptxBtn, '/convert-pptx', {}, 'presentazione.pptx', '✅ PPTX pronto!')
+    );
+
+    pngBtn.addEventListener('click', () =>
+      doExport(pngBtn, '/convert-png', {}, 'immagine.png', '✅ PNG pronto!')
+    );
+
+    // ── Pannello ridimensionabile ──
+    let isResizing = false;
+    divider.addEventListener('mousedown', e => {
+      isResizing = true;
+      divider.classList.add('dragging');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
     });
+    document.addEventListener('mousemove', e => {
+      if (!isResizing) return;
+      const panelsRect = panels.getBoundingClientRect();
+      let pct = ((e.clientX - panelsRect.left) / panelsRect.width) * 100;
+      pct = Math.max(20, Math.min(80, pct));
+      editorPanel.style.flex = `0 0 ${pct}%`;
+    });
+    document.addEventListener('mouseup', () => {
+      if (!isResizing) return;
+      isResizing = false;
+      divider.classList.remove('dragging');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    });
+
+    // ── Init ──
+    updateEditorMeta();
   </script>
 </body>
 </html>
