@@ -1,5 +1,5 @@
 # Sostituisci 'html-to-pdf' con il nome app che hai creato su Fly.io
-app = 'html-to-pdf'
+app = 'cassetta-htmltopdf'
 primary_region = 'fra'
 
 [build]
