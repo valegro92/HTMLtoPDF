@@ -1,6 +1,7 @@
 const express = require('express');
 const PptxGenJS = require('pptxgenjs');
 const path = require('path');
+const crypto = require('crypto');
 
 const { getBrowser, setupPage, getBrowserRef, clearBrowserRef } = require('./lib/browser');
 const { SLIDE_DETECTION_JS } = require('./lib/slide-detection');
@@ -12,9 +13,90 @@ const MAX_CONCURRENT = 2;
 app.use(express.json({ limit: '4mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ── Routing: landing su /, app su /app ──
+// ── Auth: accesso riservato agli iscritti all'Officina ──
+const SESSION_SECRET = process.env.SESSION_SECRET || (() => {
+  const s = crypto.randomBytes(32).toString('hex');
+  console.warn('⚠️  SESSION_SECRET non impostato — le sessioni scadono ad ogni restart');
+  return s;
+})();
+
+const DEFAULT_ALLOWED = [
+  'valegro92@gmail.com',
+  'gianlucascarpellini@gmail.com',
+  'stefferri@icloud.com',
+  'lorenzo.gant@gmail.com',
+  'g.ambrosino@demetraform.it',
+  'l-albertini@bluewin.ch',
+  'francesca.gaudino@bakermckenzie.com',
+].join(',');
+
+const ALLOWED_EMAILS = new Set(
+  (process.env.ALLOWED_EMAILS || DEFAULT_ALLOWED)
+    .split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
+);
+
+function makeSessionToken(email) {
+  return crypto.createHmac('sha256', SESSION_SECRET).update(email.toLowerCase()).digest('hex');
+}
+
+function parseCookies(req) {
+  const raw = req.headers.cookie || '';
+  return Object.fromEntries(
+    raw.split(';').map(c => {
+      const [k, ...v] = c.trim().split('=');
+      return [k.trim(), v.join('=')];
+    }).filter(([k]) => k)
+  );
+}
+
+function isValidSession(req) {
+  const cookies = parseCookies(req);
+  const email = cookies['sess_email'];
+  const token = cookies['sess_token'];
+  if (!email || !token) return false;
+  try {
+    const expected = makeSessionToken(decodeURIComponent(email));
+    const actual = Buffer.from(token.length === expected.length ? token : '0'.repeat(expected.length));
+    return crypto.timingSafeEqual(Buffer.from(expected), actual) &&
+           ALLOWED_EMAILS.has(decodeURIComponent(email).toLowerCase());
+  } catch { return false; }
+}
+
+const COOKIE_OPTS = `; Path=/; HttpOnly; SameSite=Strict; Max-Age=${60 * 60 * 24 * 90}`;
+
+// ── Routing: landing su /, login su /login, app su /app (protetta) ──
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'landing.html')));
-app.get('/app', (req, res) => res.sendFile(path.join(__dirname, 'public', 'app.html')));
+app.get('/login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
+
+app.post('/auth/login', (req, res) => {
+  const { email } = req.body;
+  if (!email || typeof email !== 'string') {
+    return res.status(400).json({ error: 'Email mancante.' });
+  }
+  const normalized = email.trim().toLowerCase();
+  if (!ALLOWED_EMAILS.has(normalized)) {
+    return res.status(403).json({ error: 'Email non autorizzata. Sei iscritto all\'Officina?' });
+  }
+  const token = makeSessionToken(normalized);
+  res.setHeader('Set-Cookie', [
+    `sess_email=${encodeURIComponent(normalized)}${COOKIE_OPTS}`,
+    `sess_token=${token}${COOKIE_OPTS}`,
+  ]);
+  res.json({ ok: true });
+});
+
+app.post('/auth/logout', (req, res) => {
+  res.setHeader('Set-Cookie', [
+    `sess_email=; Path=/; HttpOnly; Max-Age=0`,
+    `sess_token=; Path=/; HttpOnly; Max-Age=0`,
+  ]);
+  res.json({ ok: true });
+});
+
+app.get('/app', (req, res) => {
+  if (!isValidSession(req)) return res.redirect('/login?next=/app');
+  res.sendFile(path.join(__dirname, 'public', 'app.html'));
+});
 
 // ── Tipi di risorsa permessi per la conversione PDF ──
 const ALLOWED_TYPES = new Set(['document', 'stylesheet', 'font', 'image', 'script']);
