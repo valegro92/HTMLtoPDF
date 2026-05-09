@@ -100,8 +100,16 @@ npm install        # Installa dipendenze + Chrome (postinstall)
 npm start          # Avvia server su porta 3000 (o $PORT)
 ```
 
-## Deploy (Render.com)
-- render.yaml: web service, node runtime, free plan
-- Build: `npm install` (postinstall scarica Chrome)
-- Start: `npm start`
-- Env var `RENDER` settata automaticamente da Render
+## Deploy (Fly.io)
+- `fly.toml`: shared-cpu-1x, 1 GB RAM, regione `fra` (Frankfurt), always-on (`min_machines_running = 1`)
+- `Dockerfile`: base `node:20-slim` + Chromium di sistema; `npm ci --ignore-scripts` salta il postinstall Chrome
+- Env var `PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium` settata nel Dockerfile
+- Primo deploy: `fly apps create <nome>` → aggiorna `app` in `fly.toml` → `fly deploy`
+- **Vantaggio vs Render free**: nessun cold start, la macchina resta sempre attiva
+
+### Comandi Fly.io utili
+```bash
+fly logs          # log in tempo reale
+fly status        # stato macchine
+fly ssh console   # shell nella VM
+```
