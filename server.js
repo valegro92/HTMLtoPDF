@@ -28,6 +28,9 @@ const DEFAULT_ALLOWED = [
   'g.ambrosino@demetraform.it',
   'l-albertini@bluewin.ch',
   'francesca.gaudino@bakermckenzie.com',
+  'fscm.saiani@gmail.com',
+  'armando.delucia@crmpartners.it',
+  'avv.roberto.barsanti@gmail.com',
 ].join(',');
 
 const ALLOWED_EMAILS = new Set(
