@@ -1,0 +1,55 @@
+name: Propaga SUBSTACK_COOKIE a Fly.io
+
+# Trigger manuale: vai su Actions → "Propaga SUBSTACK_COOKIE a Fly.io" → Run workflow.
+# Il workflow legge il secret SUBSTACK_COOKIE (impostato dall'utente nelle repo Settings)
+# e lo propaga al deployment Fly.io come secret applicativa.
+# La VM si riavvia automaticamente e raccoglie il nuovo cookie.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  propagate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verifica secret presente
+        env:
+          COOKIE: ${{ secrets.SUBSTACK_COOKIE }}
+        run: |
+          if [ -z "$COOKIE" ]; then
+            echo "::error::Il secret repo SUBSTACK_COOKIE è vuoto. Impostalo da Settings → Secrets → Actions → New repository secret."
+            exit 1
+          fi
+          LEN=$(echo -n "$COOKIE" | wc -c)
+          echo "✅ SUBSTACK_COOKIE presente — lunghezza: ${LEN} caratteri"
+
+      - name: Installa flyctl
+        run: |
+          curl -L https://fly.io/install.sh | sh
+          echo "$HOME/.fly/bin" >> $GITHUB_PATH
+
+      - name: Setta secret su Fly.io
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          COOKIE: ${{ secrets.SUBSTACK_COOKIE }}
+        run: |
+          # --stage: imposta la secret senza forzare un nuovo deploy completo
+          # (la VM viene comunque riavviata sul prossimo restart). Per applicare
+          # subito, usiamo invece il flag default che fa restart immediato.
+          flyctl secrets set SUBSTACK_COOKIE="$COOKIE" -a cassetta-htmltopdf
+          echo "✅ Secret applicato. La VM si riavvia, poi entro 30s parte il primo sync Substack."
+
+      - name: Verifica /admin/sync-status
+        run: |
+          # Aspetta restart + primo sync (30s + qualche secondo di safety)
+          sleep 45
+          STATUS=$(curl -sf https://cassetta-htmltopdf.fly.dev/health || echo '{}')
+          echo "Health post-restart: $STATUS"
+          # Sync status richiede auth admin, non verificabile da qui senza login
+          # → il check finale lo fa l'utente da browser su /admin/sync-status
+          echo ""
+          echo "🔍 Verifica manuale: vai su https://cassetta-htmltopdf.fly.dev/admin/sync-status (loggato come admin)"
+          echo "   Dovresti vedere: cookieConfigured: true, lastSync.ok: true, count > 0"
