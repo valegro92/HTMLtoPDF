@@ -522,10 +522,21 @@
     });
 
     // ── Format hint ──
+    // Heuristica allineata a lib/slide-detection.js: matcha solo marker espliciti
+    // di slide (no .page-header / .pagination / .slider random).
+    const SLIDE_MARKER_RE = /(^|[\s_-])(slide|carousel-item|swiper-slide|reveal-section|presentation-page)([\s_-]|$)/i;
     function suggestFormat(html) {
       const doc = new DOMParser().parseFromString(html, 'text/html');
-      const slides = doc.querySelectorAll('section, [class*="slide"], [class*="page"]');
-      if (slides.length >= 2) return 'pptx';
+      let slideCount = 0;
+      doc.querySelectorAll('[class], [data-slide], [data-slide-index]').forEach(el => {
+        if (el.dataset.slide !== undefined || el.dataset.slideIndex !== undefined) {
+          slideCount++;
+          return;
+        }
+        const cls = typeof el.className === 'string' ? el.className : '';
+        if (SLIDE_MARKER_RE.test(cls)) slideCount++;
+      });
+      if (slideCount >= 2) return 'pptx';
       if (doc.querySelectorAll('img').length >= 3) return 'png';
       return 'pdf';
     }

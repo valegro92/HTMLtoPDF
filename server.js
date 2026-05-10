@@ -627,9 +627,11 @@ app.post('/convert-png', async (req, res) => {
 
       // Assembla ZIP
       const archiver = require('archiver');
+      const zipName = `${safeName}.zip`;
+      const encodedZipName = encodeURIComponent(zipName);
       res.set({
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="slides.zip"`,
+        'Content-Disposition': `attachment; filename="${zipName}"; filename*=UTF-8''${encodedZipName}`,
       });
       const archive = archiver('zip', { zlib: { level: 6 } });
       archive.pipe(res);
@@ -637,7 +639,7 @@ app.post('/convert-png', async (req, res) => {
         archive.append(Buffer.from(pngs[i]), { name: `slide-${String(i + 1).padStart(2, '0')}.png` });
       }
       await archive.finalize();
-      console.log(`✅ PNG ZIP generato: ${pngs.length} slide`);
+      console.log(`✅ PNG ZIP generato: ${zipName} (${pngs.length} slide)`);
 
     } else {
       // ═══ MODALITÀ PAGINA SINGOLA: screenshot fullPage ═══
@@ -652,11 +654,13 @@ app.post('/convert-png', async (req, res) => {
       const png = await page.screenshot({ type: 'png', omitBackground: true, fullPage: true });
       const pngBuf = Buffer.from(png);
 
-      console.log(`✅ PNG singolo generato: ${safeName}.png (${(pngBuf.length / 1024).toFixed(0)}KB)`);
+      const pngFileName = `${safeName}.png`;
+      const encodedPngName = encodeURIComponent(pngFileName);
+      console.log(`✅ PNG singolo generato: ${pngFileName} (${(pngBuf.length / 1024).toFixed(0)}KB)`);
 
       res.set({
         'Content-Type': 'image/png',
-        'Content-Disposition': `attachment; filename="${safeName}.png"`,
+        'Content-Disposition': `attachment; filename="${pngFileName}"; filename*=UTF-8''${encodedPngName}`,
         'Content-Length': pngBuf.length,
       });
       res.end(pngBuf);
