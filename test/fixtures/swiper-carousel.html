@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Product Tour — Swiper Carousel</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      overflow: hidden;
+    }
+    .swiper {
+      width: 1200px;
+      height: 675px;
+      margin: 24px auto;
+      position: relative;
+      overflow: hidden;
+    }
+    .swiper-wrapper {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      transition: transform 0.4s ease;
+      transform: translate3d(0px, 0px, 0px);
+    }
+    .swiper-slide {
+      flex-shrink: 0;
+      width: 1200px;
+      height: 675px;
+      padding: 60px 80px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      position: relative;
+    }
+    .swiper-slide:nth-child(1) {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      transform: translateX(0px);
+    }
+    .swiper-slide:nth-child(2) {
+      background: linear-gradient(135deg, #06b6d4, #0ea5e9);
+      transform: translateX(1200px);
+    }
+    .swiper-slide:nth-child(3) {
+      background: linear-gradient(135deg, #10b981, #14b8a6);
+      transform: translateX(2400px);
+    }
+    .swiper-slide:nth-child(4) {
+      background: linear-gradient(135deg, #f59e0b, #f97316);
+      transform: translateX(3600px);
+    }
+    h2 { font-size: 56px; margin-bottom: 24px; }
+    p { font-size: 22px; line-height: 1.6; max-width: 800px; }
+    .badge {
+      display: inline-block;
+      padding: 6px 16px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 999px;
+      font-size: 14px;
+      margin-bottom: 24px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .feature-list { margin-top: 24px; }
+    .feature-list li {
+      list-style: none;
+      padding: 8px 0 8px 32px;
+      font-size: 18px;
+      position: relative;
+    }
+    .feature-list li::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: rgba(255,255,255,0.9);
+      font-weight: bold;
+    }
+    .swiper-pagination {
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+    }
+    .swiper-pagination span {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.4);
+    }
+    .swiper-pagination span.active { background: #fff; }
+  </style>
+</head>
+<body>
+  <h1 style="position:absolute;left:-9999px;">Aurora Platform Tour</h1>
+  <div class="swiper">
+    <div class="swiper-wrapper">
+      <div class="swiper-slide">
+        <span class="badge">Welcome</span>
+        <h2>Aurora Platform</h2>
+        <p>The unified workspace for modern data teams. Collaborate on dashboards, models and notebooks without context switching.</p>
+        <ul class="feature-list">
+          <li>Real-time collaboration</li>
+          <li>Version control built-in</li>
+          <li>SOC 2 Type II compliant</li>
+        </ul>
+      </div>
+      <div class="swiper-slide">
+        <span class="badge">Connect</span>
+        <h2>50+ Native Connectors</h2>
+        <p>Pull data from Postgres, Snowflake, BigQuery, Salesforce, Stripe and more. Setup takes under 60 seconds.</p>
+        <ul class="feature-list">
+          <li>OAuth and key-based auth</li>
+          <li>Scheduled and CDC ingestion</li>
+          <li>Schema drift detection</li>
+        </ul>
+      </div>
+      <div class="swiper-slide">
+        <span class="badge">Build</span>
+        <h2>Visual Pipelines</h2>
+        <p>Drag-and-drop transformations with a SQL escape hatch. Branch, merge and review like code.</p>
+        <ul class="feature-list">
+          <li>SQL + dbt-compatible models</li>
+          <li>Lineage and impact analysis</li>
+          <li>Automatic tests on every run</li>
+        </ul>
+      </div>
+      <div class="swiper-slide">
+        <span class="badge">Ship</span>
+        <h2>From Insight to Action</h2>
+        <p>Embed dashboards, push alerts to Slack, sync customer 360 to ad platforms. Close the loop.</p>
+        <ul class="feature-list">
+          <li>Reverse ETL to 30+ destinations</li>
+          <li>White-label embedding</li>
+          <li>Audit logs and SSO</li>
+        </ul>
+      </div>
+    </div>
+    <div class="swiper-pagination">
+      <span class="active"></span><span></span><span></span><span></span>
+    </div>
+  </div>
+</body>
+</html>

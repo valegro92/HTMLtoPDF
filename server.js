@@ -145,6 +145,30 @@ const PAGE_PX = {
 // ── Concorrenza ──
 let activeConversions = 0;
 
+// ── Helper: sanitizzazione filename derivato da titolo HTML ──
+const MAX_FILENAME_LEN = 80;
+function safeFileName(title, fallback) {
+  if (!title) return fallback || 'output';
+  return title.replace(/[^a-zA-Z0-9À-ÿ\s-]/g, '').replace(/\s+/g, '_').substring(0, MAX_FILENAME_LEN);
+}
+
+// ── Helper: imposta header download (Content-Type, Disposition con filename UTF-8, Length) ──
+function setDownloadHeaders(res, { fileName, contentType, contentLength }) {
+  const encoded = encodeURIComponent(fileName);
+  const headers = {
+    'Content-Type': contentType,
+    'Content-Disposition': `attachment; filename="${fileName}"; filename*=UTF-8''${encoded}`,
+  };
+  if (contentLength != null) headers['Content-Length'] = contentLength;
+  res.set(headers);
+}
+
+// ── Helper: inietta detector + esegue __detectContent in page context ──
+async function detectInPage(page, opts = {}) {
+  await page.addScriptTag({ content: SLIDE_DETECTION_JS });
+  return page.evaluate((o) => window.__detectContent(o), opts);
+}
+
 // ── Health check ──
 app.get('/health', (req, res) => {
   const b = getBrowserRef();
@@ -154,6 +178,39 @@ app.get('/health', (req, res) => {
     activeConversions,
     maxConcurrent: MAX_CONCURRENT,
   });
+});
+
+// ── Endpoint debug: ritorna lo scoring del detector senza generare output ──
+// Auth-protected (uguale a /app). Body: { html, minSlides? }
+app.post('/detect', async (req, res) => {
+  if (!isValidSession(req)) return res.status(401).json({ error: 'Non autorizzato.' });
+  if (activeConversions >= MAX_CONCURRENT) {
+    return res.status(429).json({ error: 'Server occupato, riprova tra qualche secondo.' });
+  }
+  const { html } = req.body;
+  if (!html || typeof html !== 'string') {
+    return res.status(400).json({ error: 'Campo "html" mancante o non valido.' });
+  }
+  const minSlides = Number.isInteger(req.body.minSlides) && req.body.minSlides > 0
+    ? req.body.minSlides
+    : 2;
+
+  activeConversions++;
+  let page = null;
+  try {
+    const b = await getBrowser();
+    page = await setupPage(b, html, ALLOWED_TYPES);
+    const result = await detectInPage(page, { minSlides, debug: true, extractSlides: false });
+    res.json(result);
+  } catch (err) {
+    console.error('❌ Errore /detect:', err.message);
+    const b = getBrowserRef();
+    if (b && !b.connected) clearBrowserRef();
+    res.status(500).json({ error: `Detection fallita: ${err.message}` });
+  } finally {
+    activeConversions--;
+    if (page) await page.close().catch(() => {});
+  }
 });
 
 // ── Endpoint principale ──
@@ -193,27 +250,17 @@ app.post('/convert', async (req, res) => {
     });
 
     if (isAuto) {
-      // 1. Detect slide mode (skip se singlePage=true)
-      let slideCapture = null;
+      // 1. Score-based detection (skip se singlePage=true)
+      // detection = { mode: 'presentation'|'document'|'infographic'|'dashboard'|'email'|'unknown',
+      //               confidence, recommendedFormat, rects?, overlapping?, slideW?, slideH? }
+      let detection = null;
       if (!singlePage) {
         await page.addScriptTag({ content: SLIDE_DETECTION_JS });
-        slideCapture = await page.evaluate(() => {
-          const result = window.__detectSlides();
-          if (!result || !result.slideElements || result.slideElements.length < 2) return null;
-          const rects = result.slideElements.map(el => {
-            const r = el.getBoundingClientRect();
-            return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) };
-          });
-          // overlapping = slide vere sovrapposte (stesso X E Y).
-          // Un carousel orizzontale ha stessa Y ma X diverso → NON overlapping, usiamo rects[i].
-          // detectSlides() resetta già overflow:hidden sui container, quindi anche le slide
-          // fuori viewport sono accessibili tramite clip sul loro rect effettivo.
-          const overlapping = rects.length >= 2 &&
-            Math.abs(rects[0].y - rects[1].y) < 10 &&
-            Math.abs(rects[0].x - rects[1].x) < 10;
-          return { rects, overlapping, slideW: Math.ceil(result.slideW), slideH: Math.ceil(result.slideH) };
-        });
+        detection = await page.evaluate(() => window.__detectContent({ minSlides: 3 }));
       }
+      const slideCapture = (detection && detection.mode === 'presentation' && detection.rects)
+        ? { rects: detection.rects, overlapping: detection.overlapping, slideW: detection.slideW, slideH: detection.slideH }
+        : null;
 
       if (slideCapture) {
         // ═══ Slide mode: screenshot pixel-perfect per ogni slide → PDF assemblato ═══
@@ -222,7 +269,10 @@ app.post('/convert', async (req, res) => {
         // Congela JS framework prima del loop screenshot
         await freezeJsExecution(page);
 
-        const screenshots = [];
+        // Stream-style: converte ogni screenshot in stringa data-URI e droppa il
+        // buffer subito → evita di tenere ~25MB di Buffer + ~33MB base64 in heap
+        // contemporaneamente (rilevante su VM da 1GB con 2 conversioni concorrenti).
+        const slideParts = [];
         for (let i = 0; i < slideCapture.rects.length; i++) {
           if (slideCapture.overlapping) {
             await page.evaluate((idx) => {
@@ -243,15 +293,13 @@ app.post('/convert', async (req, res) => {
             type: 'png',
             clip: { x: rect.x, y: rect.y, width: rect.w, height: rect.h },
           });
-          screenshots.push(Buffer.from(png));
+          slideParts.push(`<div class="pdf-slide"><img src="data:image/png;base64,${Buffer.from(png).toString('base64')}"></div>`);
         }
 
-        // Costruisci PDF: un wrapper HTML con un'immagine full-bleed per slide + page-break
+        // Costruisci PDF: wrapper HTML con un'immagine full-bleed per slide + page-break
         const slideW = slideCapture.slideW;
         const slideH = slideCapture.slideH;
-        const slidesHtml = screenshots.map(buf =>
-          `<div class="pdf-slide"><img src="data:image/png;base64,${buf.toString('base64')}"></div>`
-        ).join('');
+        const slidesHtml = slideParts.join('');
         const wrapperHtml = `<!DOCTYPE html><html><head><style>
           *,*::before,*::after { margin:0; padding:0; box-sizing:border-box; }
           html, body { background: #fff; }
@@ -323,20 +371,14 @@ app.post('/convert', async (req, res) => {
       pdfOpts.format = pageFormat;
     }
 
-    // Nome file dal titolo (estratto prima di eventuali setContent)
-    const safeName = docTitle
-      ? docTitle.replace(/[^a-zA-Z0-9À-ÿ\s-]/g, '').replace(/\s+/g, '_').substring(0, 80)
-      : 'output';
-    const fileName = `${safeName}.pdf`;
-
+    const fileName = `${safeFileName(docTitle, 'output')}.pdf`;
     const pdfResult = await page.pdf(pdfOpts);
     const pdfBuffer = Buffer.from(pdfResult);
 
-    const encodedName = encodeURIComponent(fileName);
-    res.set({
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="${fileName}"; filename*=UTF-8''${encodedName}`,
-      'Content-Length': pdfBuffer.length,
+    setDownloadHeaders(res, {
+      fileName,
+      contentType: 'application/pdf',
+      contentLength: pdfBuffer.length,
     });
     res.end(pdfBuffer);
   } catch (err) {
@@ -370,7 +412,7 @@ app.post('/convert-pptx', async (req, res) => {
     const b = await getBrowser();
     page = await setupPage(b, html, PPTX_ALLOWED);
 
-    // ── FASE 1: Rileva tipo di contenuto ──
+    // ── FASE 1: Rileva tipo di contenuto via scoring ──
     await page.addScriptTag({ content: SLIDE_DETECTION_JS });
     const slideData = await page.evaluate(() => {
       const docTitle = (() => {
@@ -381,24 +423,25 @@ app.post('/convert-pptx', async (req, res) => {
         return 'Presentazione';
       })();
 
-      const detection = window.__detectSlides(2);
+      const det = window.__detectContent({ minSlides: 2 });
 
-      if (detection && detection.slideElements && detection.slideElements.length >= 2) {
-        const { slideElements, slideW, slideH } = detection;
-        const rects = slideElements.map(el => {
-          const r = el.getBoundingClientRect();
-          return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) };
-        });
-        // Slide absolute-positioned (JS presentation): same y → screenshot one at a time
-        const overlapping = rects.length >= 2 &&
-          Math.abs(rects[0].y - rects[1].y) < 10 &&
-          Math.abs(rects[0].x - rects[1].x) < 10;
-        return { mode: 'slides', title: docTitle, slideW, slideH, rects, overlapping };
+      if (det && det.mode === 'presentation' && det.rects && det.rects.length >= 2) {
+        // det.slideW/slideH già Math.ceil in extractSlideElements → no double-ceil
+        return {
+          mode: 'slides',
+          title: docTitle,
+          slideW: det.slideW,
+          slideH: det.slideH,
+          rects: det.rects,
+          overlapping: det.overlapping,
+        };
       }
 
+      // document / infographic / dashboard / email / unknown → screenshot fallback
       return {
         mode: 'screenshot',
         title: docTitle,
+        detectedMode: det ? det.mode : 'unknown',
         pageW: Math.max(document.body.scrollWidth, document.documentElement.scrollWidth),
         pageH: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight),
       };
@@ -504,18 +547,14 @@ app.post('/convert-pptx', async (req, res) => {
 
     // ── Genera e invia PPTX ──
     const pptxBuffer = await pptx.write({ outputType: 'nodebuffer' });
-    const safeName = docTitle
-      ? docTitle.replace(/[^a-zA-Z0-9À-ÿ\s-]/g, '').replace(/\s+/g, '_').substring(0, 80)
-      : 'presentazione';
-    const fileName = `${safeName}.pptx`;
+    const fileName = `${safeFileName(docTitle, 'presentazione')}.pptx`;
 
     console.log(`✅ PPTX generato: ${fileName} (${(pptxBuffer.length / 1024).toFixed(0)}KB)`);
 
-    const encodedName = encodeURIComponent(fileName);
-    res.set({
-      'Content-Type': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'Content-Disposition': `attachment; filename="${fileName}"; filename*=UTF-8''${encodedName}`,
-      'Content-Length': pptxBuffer.length,
+    setDownloadHeaders(res, {
+      fileName,
+      contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      contentLength: pptxBuffer.length,
     });
     res.end(pptxBuffer);
   } catch (err) {
@@ -549,17 +588,14 @@ app.post('/convert-png', async (req, res) => {
     const b = await getBrowser();
     page = await setupPage(b, html, PNG_ALLOWED);
 
-    // ── Detect slide mode ──
+    // ── Detect content type via scoring ──
     await page.addScriptTag({ content: SLIDE_DETECTION_JS });
 
     const slideInfo = await page.evaluate(() => {
-      const result = window.__detectSlides(2); // soglia 2 per PNG (stesso di PPTX)
-      if (!result || !result.slideElements || result.slideElements.length < 2) return null;
-      return {
-        count: result.slideElements.length,
-        slideW: Math.ceil(result.slideW),
-        slideH: Math.ceil(result.slideH),
-      };
+      const det = window.__detectContent({ minSlides: 2 });
+      if (!det || det.mode !== 'presentation' || !det.rects || det.rects.length < 2) return null;
+      // det.slideW/slideH già Math.ceil in extractSlideElements
+      return { count: det.rects.length, slideW: det.slideW, slideH: det.slideH };
     });
 
     // Titolo documento per nome file
@@ -570,9 +606,7 @@ app.post('/convert-png', async (req, res) => {
       if (t) return t.textContent.trim();
       return '';
     });
-    const safeName = docTitle
-      ? docTitle.replace(/[^a-zA-Z0-9À-ÿ\s-]/g, '').replace(/\s+/g, '_').substring(0, 80)
-      : 'output';
+    const safeName = safeFileName(docTitle, 'output');
 
     if (slideInfo) {
       // ═══ MODALITÀ SLIDE: uno screenshot per slide → ZIP ═══
@@ -627,17 +661,15 @@ app.post('/convert-png', async (req, res) => {
 
       // Assembla ZIP
       const archiver = require('archiver');
-      res.set({
-        'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="slides.zip"`,
-      });
+      const zipName = `${safeName}.zip`;
+      setDownloadHeaders(res, { fileName: zipName, contentType: 'application/zip' });
       const archive = archiver('zip', { zlib: { level: 6 } });
       archive.pipe(res);
       for (let i = 0; i < pngs.length; i++) {
         archive.append(Buffer.from(pngs[i]), { name: `slide-${String(i + 1).padStart(2, '0')}.png` });
       }
       await archive.finalize();
-      console.log(`✅ PNG ZIP generato: ${pngs.length} slide`);
+      console.log(`✅ PNG ZIP generato: ${zipName} (${pngs.length} slide)`);
 
     } else {
       // ═══ MODALITÀ PAGINA SINGOLA: screenshot fullPage ═══
@@ -652,12 +684,13 @@ app.post('/convert-png', async (req, res) => {
       const png = await page.screenshot({ type: 'png', omitBackground: true, fullPage: true });
       const pngBuf = Buffer.from(png);
 
-      console.log(`✅ PNG singolo generato: ${safeName}.png (${(pngBuf.length / 1024).toFixed(0)}KB)`);
+      const pngFileName = `${safeName}.png`;
+      console.log(`✅ PNG singolo generato: ${pngFileName} (${(pngBuf.length / 1024).toFixed(0)}KB)`);
 
-      res.set({
-        'Content-Type': 'image/png',
-        'Content-Disposition': `attachment; filename="${safeName}.png"`,
-        'Content-Length': pngBuf.length,
+      setDownloadHeaders(res, {
+        fileName: pngFileName,
+        contentType: 'image/png',
+        contentLength: pngBuf.length,
       });
       res.end(pngBuf);
     }

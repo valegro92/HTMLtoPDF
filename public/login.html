@@ -189,7 +189,10 @@
     const errorMsg = document.getElementById('errorMsg');
     const submitBtn = document.getElementById('submitBtn');
 
-    const next = new URLSearchParams(location.search).get('next') || '/app';
+    // Accetta solo path same-origin (deve iniziare con "/" ma non con "//" o "/\")
+    // per prevenire open redirect via ?next=https://evil.com o ?next=//evil.com
+    const rawNext = new URLSearchParams(location.search).get('next');
+    const next = (rawNext && /^\/[^/\\]/.test(rawNext)) ? rawNext : '/app';
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
