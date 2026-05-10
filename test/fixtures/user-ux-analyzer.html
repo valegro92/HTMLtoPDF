@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UX & IA Analyzer - Slide Presentation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        dark: '#0f0f11',
+                        surface: '#18181b',
+                        accent: '#c084fc',
+                        accentHover: '#a855f7'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f0f11;
+            color: #f4f4f5;
+            overflow: hidden;
+        }
+
+        .slide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out;
+            transform: translateY(20px) scale(0.98);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .slide.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0) scale(1);
+            z-index: 10;
+        }
+
+        .slide.previous {
+            transform: translateY(-20px) scale(0.98);
+        }
+
+        .glass-panel {
+            background: rgba(24, 24, 27, 0.6);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .progress-bar { transition: width 0.3s ease; }
+    </style>
+</head>
+<body class="antialiased h-screen w-screen selection:bg-accent selection:text-white">
+
+    <div class="fixed top-0 left-0 w-full h-1.5 bg-surface z-50">
+        <div id="progressBar" class="h-full bg-gradient-to-r from-blue-500 to-accent progress-bar" style="width: 0%;"></div>
+    </div>
+
+    <div class="fixed top-8 left-8 z-40 flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-accent/20 flex items-center justify-center border border-accent/30">
+            <svg class="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+        </div>
+        <span class="font-semibold tracking-wide text-sm text-zinc-400">UX ANALYZER</span>
+    </div>
+
+    <main id="presentation">
+        <section class="slide active p-8">
+            <div class="max-w-4xl w-full text-center">
+                <div class="inline-block px-4 py-1.5 mb-8 text-xs font-bold tracking-widest text-accent uppercase bg-accent/10 rounded-full border border-accent/20">System Prompt Framework</div>
+                <h1 class="text-6xl md:text-8xl font-extrabold tracking-tight mb-8 leading-tight">UX & IA <br> <span class="text-transparent bg-clip-text bg-gradient-to-r from-accent to-blue-500">Analyzer Gem</span></h1>
+                <p class="text-xl md:text-2xl text-zinc-400 max-w-2xl mx-auto leading-relaxed">Un framework strutturato per trasformare la tua intelligenza artificiale in un Senior UX Designer di livello globale.</p>
+            </div>
+        </section>
+
+        <section class="slide p-8">
+            <div class="glass-panel p-12 rounded-3xl max-w-5xl w-full"><h2 class="text-4xl font-bold mb-6 text-white">Target Audience</h2><p>Slide 2</p></div>
+        </section>
+
+        <section class="slide p-8">
+            <div class="glass-panel p-12 rounded-3xl max-w-5xl w-full"><h2 class="text-4xl font-bold mb-6 text-white">Architettura (IA)</h2><p>Slide 3</p></div>
+        </section>
+
+        <section class="slide p-8">
+            <div class="glass-panel p-12 rounded-3xl max-w-5xl w-full"><h2 class="text-4xl font-bold mb-6 text-white">Peculiarità UX/UI</h2><p>Slide 4</p></div>
+        </section>
+
+        <section class="slide p-8">
+            <div class="max-w-5xl w-full"><h2 class="text-4xl font-bold mb-2">Il Prompt Operativo</h2><p>Slide 5</p></div>
+        </section>
+    </main>
+
+    <script>
+        const slides = document.querySelectorAll('.slide');
+        let currentSlide = 0;
+        const totalSlides = slides.length;
+        function updateUI() {
+            slides.forEach((slide, index) => {
+                slide.classList.remove('active', 'previous');
+                if (index === currentSlide) slide.classList.add('active');
+                else if (index < currentSlide) slide.classList.add('previous');
+            });
+        }
+        function nextSlide() { if (currentSlide < totalSlides - 1) { currentSlide++; updateUI(); } }
+        function prevSlide() { if (currentSlide > 0) { currentSlide--; updateUI(); } }
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ') nextSlide();
+            else if (e.key === 'ArrowLeft') prevSlide();
+        });
+    </script>
+</body>
+</html>

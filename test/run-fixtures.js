@@ -37,6 +37,10 @@ const EXPECTATIONS = {
   'infographic-long.html':          { mode: 'infographic',  minConfidence: 0.30 },
   'dashboard-fixed.html':           { mode: 'dashboard',    minConfidence: 0.30 },
   'landing-hero-features-cta.html': { mode: ['document', 'infographic', 'unknown'], minConfidence: 0 },
+  // Regression test bug PR #25: framework slide con .slide{transform:translateY(20px) scale(0.98)}
+  // davano rect post-transform diversi tra .active e altre → overlapping=false → screenshot
+  // sovrapposti. Fix: setProperty('transform','none','important') sui marker prima di misurare.
+  'user-ux-analyzer.html':          { mode: 'presentation', minConfidence: 0.30, expectOverlapping: true },
 };
 
 async function runFixture(browser, fixtureName) {
@@ -56,6 +60,15 @@ async function runFixture(browser, fixtureName) {
   } catch (_) {
     // Alcune fixture caricano CDN che possono timeout — la struttura DOM è già a posto
   }
+  // Replica setupPage: transitions disable. Senza, setProperty('transform','none')
+  // ritarda di 0.5s e il rect non si aggiorna sincrono → overlapping=false su slide
+  // animate (ex bug PR #25).
+  await page.addStyleTag({
+    content: `*, *::before, *::after {
+      animation-duration: 0s !important; animation-delay: 0s !important;
+      transition-duration: 0s !important; transition-delay: 0s !important;
+    }`,
+  });
   await page.addScriptTag({ content: DETECTOR_SCRIPT });
   const result = await page.evaluate(() =>
     window.__detectContent({ minSlides: 2, debug: true, extractSlides: true }),
@@ -83,7 +96,7 @@ function check(result, expected) {
   const modeOk = expectedModes.includes(result.mode);
   const confOk = result.confidence >= expected.minConfidence;
   // Per presentation, valida anche shape del return (slideElements + slideW/H).
-  // Era il bug: il shim ritornava {elements,w,h}, server.js leggeva slideElements.
+  // Era il bug PR #24: il shim ritornava {elements,w,h}, server.js leggeva slideElements.
   const shimOk = result.mode !== 'presentation' || (
     result.__slideShim &&
     result.__slideShim.hasSlideElements &&
@@ -91,7 +104,10 @@ function check(result, expected) {
     result.__slideShim.hasSlideW &&
     result.__slideShim.hasSlideH
   );
-  return { modeOk, confOk, shimOk, allOk: modeOk && confOk && shimOk };
+  // Regression PR #25: se la fixture è un framework slide animato, deve essere overlapping.
+  // Era il bug: transform CSS spostava rect → overlapping=false → screenshot sovrapposti.
+  const overlappingOk = expected.expectOverlapping == null || result.overlapping === expected.expectOverlapping;
+  return { modeOk, confOk, shimOk, overlappingOk, allOk: modeOk && confOk && shimOk && overlappingOk };
 }
 
 function fmt(s, len) {
