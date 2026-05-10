@@ -65,9 +65,14 @@
   };
 
   // ─────────────────────────────────────────────────────────────────────────
-  // SLIDE MARKER REGEX — allineato a slide-detection.js
+  // CONSTANTS — allineate fra buildContext, extractSlideElements e server.js
   // ─────────────────────────────────────────────────────────────────────────
   const SLIDE_MARKER_RE = /(^|[\s_-])(slide|carousel-item|swiper-slide|reveal-section|presentation-page)([\s_-]|$)/i;
+  const OVERLAP_THRESHOLD_PX = 10;        // x/y delta entro cui due rect si considerano sovrapposti
+  const SIZE_TOLERANCE_RATIO = 0.15;      // 15% di tolleranza in similarSize()
+  const MIN_SLIDE_WIDTH = 200;            // px sotto cui un elemento non è una slide
+  const MIN_SLIDE_HEIGHT_ABS = 500;       // px assoluti minimi per slide
+  const MIN_SLIDE_HEIGHT_VH_RATIO = 0.6;  // o 60% del viewport, whichever bigger
 
   function classOf(el) {
     if (!el || !el.className) return '';
@@ -84,16 +89,37 @@
   // ─────────────────────────────────────────────────────────────────────────
   // CONTEXT BUILDER — robusto a doc senza layout (DOMParser client-side)
   // ─────────────────────────────────────────────────────────────────────────
+  // getComputedStyle funziona solo se l'elemento è nel document live di window;
+  // per il `parsed = new DOMParser()` lato client torna stili default → il try/catch
+  // protegge sia il fallimento sia il caso null. Niente cargo-cult check ownerDocument.
   function safeGetComputedStyle(el) {
     try {
       const w = (typeof window !== 'undefined') ? window : null;
-      if (!w || !w.getComputedStyle || !el.ownerDocument || el.ownerDocument !== w.document) return null;
+      if (!w || !w.getComputedStyle) return null;
       return w.getComputedStyle(el);
     } catch (_) { return null; }
   }
 
   function rectOf(el) {
     try { return el.getBoundingClientRect(); } catch (_) { return { x: 0, y: 0, left: 0, top: 0, width: 0, height: 0 }; }
+  }
+
+  function getSized(parent, vh) {
+    const minH = Math.max(MIN_SLIDE_HEIGHT_ABS, vh * MIN_SLIDE_HEIGHT_VH_RATIO);
+    return Array.from(parent.children).filter(el => {
+      const r = rectOf(el);
+      return r.width > MIN_SLIDE_WIDTH && r.height > minH;
+    });
+  }
+
+  function similarSizedRects(els) {
+    if (els.length < 2) return false;
+    const f = rectOf(els[0]);
+    return els.every(el => {
+      const r = rectOf(el);
+      return Math.abs(r.width - f.width) / Math.max(f.width, 1) < SIZE_TOLERANCE_RATIO &&
+             Math.abs(r.height - f.height) / Math.max(f.height, 1) < SIZE_TOLERANCE_RATIO;
+    });
   }
 
   function buildContext(doc, viewport) {
@@ -104,8 +130,7 @@
     // ── Marker counts ──
     let markerCount = 0;
     let dataSlideCount = 0;
-    const candidateMarkers = doc.querySelectorAll('[class], [data-slide], [data-slide-index]');
-    candidateMarkers.forEach(el => {
+    doc.querySelectorAll('[class], [data-slide], [data-slide-index]').forEach(el => {
       if (SLIDE_MARKER_RE.test(classOf(el))) markerCount++;
       if (el.dataset && (el.dataset.slide !== undefined || el.dataset.slideIndex !== undefined)) dataSlideCount++;
     });
@@ -146,24 +171,12 @@
     let similarSizedViewportChildren = 0;
     let candidateAspect16x9 = false;
     if (body && vh > 0) {
-      const minH = Math.max(500, vh * 0.6);
-      const sizedKids = Array.from(body.children).filter(el => {
-        const r = rectOf(el);
-        return r.width > 200 && r.height > minH;
-      });
-      if (sizedKids.length >= 2) {
+      const sizedKids = getSized(body, vh);
+      if (sizedKids.length >= 2 && similarSizedRects(sizedKids)) {
+        similarSizedViewportChildren = sizedKids.length;
         const f = rectOf(sizedKids[0]);
-        const allSimilar = sizedKids.every(el => {
-          const r = rectOf(el);
-          return Math.abs(r.width - f.width) / Math.max(f.width, 1) < 0.15 &&
-                 Math.abs(r.height - f.height) / Math.max(f.height, 1) < 0.15;
-        });
-        if (allSimilar) {
-          similarSizedViewportChildren = sizedKids.length;
-          if (f.height > 0) {
-            const aspect = f.width / f.height;
-            candidateAspect16x9 = Math.abs(aspect - (16 / 9)) < 0.18;
-          }
+        if (f.height > 0) {
+          candidateAspect16x9 = Math.abs((f.width / f.height) - (16 / 9)) < 0.18;
         }
       }
     }
@@ -183,7 +196,7 @@
         const r0 = rectOf(absKids[0]);
         absoluteOverlappingChildren = absKids.filter(el => {
           const r = rectOf(el);
-          return Math.abs(r.x - r0.x) < 10 && Math.abs(r.y - r0.y) < 10;
+          return Math.abs(r.x - r0.x) < OVERLAP_THRESHOLD_PX && Math.abs(r.y - r0.y) < OVERLAP_THRESHOLD_PX;
         }).length;
       }
     }
@@ -299,9 +312,28 @@
   // ─────────────────────────────────────────────────────────────────────────
   function extractSlideElements(doc, minSlides) {
     minSlides = minSlides || 3;
+    const vh = (typeof window !== 'undefined' ? window.innerHeight : 900) || 900;
 
-    // Reset transform (carousel) e overflow:hidden (slider container)
-    doc.querySelectorAll('*').forEach(el => {
+    // Reset transform/overflow SOLO sugli ancestors dei marker elements + body.
+    // Una scansione completa di querySelectorAll('*') + getComputedStyle è O(N)
+    // con N che può raggiungere migliaia in deck ricchi → centinaia di ms per call,
+    // moltiplicati per ogni iterazione del loop screenshot. Ancestor walking riduce
+    // il working set a poche decine di nodi.
+    const ancestorsToReset = new Set();
+    if (doc.body) ancestorsToReset.add(doc.body);
+    const markerEls = doc.querySelectorAll(
+      '[class*="slide"], [class*="swiper"], [class*="carousel"], [class*="slick"]'
+    );
+    markerEls.forEach(el => {
+      let cur = el.parentElement;
+      let walked = 0;
+      while (cur && cur !== doc.body && walked < 5) {
+        ancestorsToReset.add(cur);
+        cur = cur.parentElement;
+        walked++;
+      }
+    });
+    ancestorsToReset.forEach(el => {
       const cs = safeGetComputedStyle(el);
       if (!cs) return;
       if (cs.transform && cs.transform !== 'none' && el.children.length > 2) {
@@ -312,23 +344,6 @@
       }
     });
 
-    function getSized(parent) {
-      const vh = (typeof window !== 'undefined' ? window.innerHeight : 900) || 900;
-      const minH = Math.max(500, vh * 0.6);
-      return Array.from(parent.children).filter(el => {
-        const r = rectOf(el);
-        return r.width > 200 && r.height > minH;
-      });
-    }
-    function similar(els) {
-      if (els.length < 2) return false;
-      const f = rectOf(els[0]);
-      return els.every(el => {
-        const r = rectOf(el);
-        return Math.abs(r.width - f.width) / Math.max(f.width, 1) < 0.15 &&
-               Math.abs(r.height - f.height) / Math.max(f.height, 1) < 0.15;
-      });
-    }
     function getMarked(parent) {
       return Array.from(parent.children).filter(el => {
         const r = rectOf(el);
@@ -369,7 +384,7 @@
           el.style.setProperty('opacity', '1', 'important');
         });
         const markedKids = getMarked(bestParent);
-        if (markedKids.length >= 2 && similar(markedKids)) {
+        if (markedKids.length >= 2 && similarSizedRects(markedKids)) {
           const r = rectOf(markedKids[0]);
           return { elements: markedKids, w: Math.ceil(r.width), h: Math.ceil(r.height), wrapper: bestParent };
         }
@@ -377,16 +392,16 @@
     }
 
     // ── Strategy 1: direct body children sized like viewport ──
-    const bodyKids = getSized(doc.body);
-    if (bodyKids.length >= minSlides && similar(bodyKids)) {
+    const bodyKids = getSized(doc.body, vh);
+    if (bodyKids.length >= minSlides && similarSizedRects(bodyKids)) {
       const r = rectOf(bodyKids[0]);
       return { elements: bodyKids, w: Math.ceil(r.width), h: Math.ceil(r.height), wrapper: doc.body };
     }
 
     // ── Strategy 2: wrapper child ──
     for (const child of Array.from(doc.body.children)) {
-      const wKids = getSized(child);
-      if (wKids.length >= minSlides && similar(wKids)) {
+      const wKids = getSized(child, vh);
+      if (wKids.length >= minSlides && similarSizedRects(wKids)) {
         const r = rectOf(wKids[0]);
         return { elements: wKids, w: Math.ceil(r.width), h: Math.ceil(r.height), wrapper: child };
       }
@@ -396,8 +411,8 @@
     const containers = doc.querySelectorAll('div, section, main, article');
     for (const c of containers) {
       if (depth(c) > 3) continue;
-      const k = getSized(c);
-      if (k.length >= minSlides && similar(k)) {
+      const k = getSized(c, vh);
+      if (k.length >= minSlides && similarSizedRects(k)) {
         const r = rectOf(k[0]);
         return { elements: k, w: Math.ceil(r.width), h: Math.ceil(r.height), wrapper: c };
       }
@@ -446,10 +461,15 @@
     }
 
     // For presentation, also extract slide elements; if extraction fails, downgrade.
+    // Cache su window.__lastDetectedSlides per evitare re-extract nel loop
+    // server-side (vedi shim detectSlides).
     let slideData = null;
     if (mode === 'presentation' && opts.extractSlides !== false) {
       slideData = extractSlideElements(doc, minSlides);
       if (!slideData) mode = 'unknown';
+      else if (typeof window !== 'undefined' && doc === window.document) {
+        window.__lastDetectedSlides = slideData;
+      }
     }
 
     const result = {
@@ -472,8 +492,8 @@
         return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) };
       });
       const overlapping = rects.length >= 2 &&
-        Math.abs(rects[0].y - rects[1].y) < 10 &&
-        Math.abs(rects[0].x - rects[1].x) < 10;
+        Math.abs(rects[0].y - rects[1].y) < OVERLAP_THRESHOLD_PX &&
+        Math.abs(rects[0].x - rects[1].x) < OVERLAP_THRESHOLD_PX;
       result.slideW = slideData.w;
       result.slideH = slideData.h;
       result.rects = rects;
@@ -492,11 +512,18 @@
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // COMPAT SHIM: __detectSlides (mantiene API legacy per slide-detection.js)
+  // COMPAT SHIM: __detectSlides — usa la cache se disponibile (popolata da
+  // un detectContent precedente). Evita di re-eseguire extractSlideElements
+  // ad ogni iterazione del loop screenshot server-side.
   // ─────────────────────────────────────────────────────────────────────────
   function detectSlides(minSlides) {
     if (typeof document === 'undefined' || !document.body) return null;
-    return extractSlideElements(document, minSlides || 3);
+    if (typeof window !== 'undefined' && window.__lastDetectedSlides) {
+      return window.__lastDetectedSlides;
+    }
+    const r = extractSlideElements(document, minSlides || 3);
+    if (r && typeof window !== 'undefined') window.__lastDetectedSlides = r;
+    return r;
   }
 
   // ─────────────────────────────────────────────────────────────────────────
