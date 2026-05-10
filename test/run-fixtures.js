@@ -58,8 +58,22 @@ async function runFixture(browser, fixtureName) {
   }
   await page.addScriptTag({ content: DETECTOR_SCRIPT });
   const result = await page.evaluate(() =>
-    window.__detectContent({ minSlides: 2, debug: true, extractSlides: false }),
+    window.__detectContent({ minSlides: 2, debug: true, extractSlides: true }),
   );
+  // Sanity: per presentation, il shim __detectSlides() deve ritornare un oggetto
+  // con slideElements (Array DOM). Era rotto: tornava .elements rompendo il loop
+  // visibility-toggle nei 3 endpoint server.
+  const slideShim = await page.evaluate(() => {
+    const r = window.__detectSlides && window.__detectSlides();
+    if (!r) return null;
+    return {
+      hasSlideElements: Array.isArray(r.slideElements) || (r.slideElements && r.slideElements.length !== undefined),
+      slideElementsCount: r.slideElements ? r.slideElements.length : 0,
+      hasSlideW: typeof r.slideW === 'number',
+      hasSlideH: typeof r.slideH === 'number',
+    };
+  });
+  result.__slideShim = slideShim;
   await page.close();
   return result;
 }
@@ -68,7 +82,16 @@ function check(result, expected) {
   const expectedModes = Array.isArray(expected.mode) ? expected.mode : [expected.mode];
   const modeOk = expectedModes.includes(result.mode);
   const confOk = result.confidence >= expected.minConfidence;
-  return { modeOk, confOk, allOk: modeOk && confOk };
+  // Per presentation, valida anche shape del return (slideElements + slideW/H).
+  // Era il bug: il shim ritornava {elements,w,h}, server.js leggeva slideElements.
+  const shimOk = result.mode !== 'presentation' || (
+    result.__slideShim &&
+    result.__slideShim.hasSlideElements &&
+    result.__slideShim.slideElementsCount >= 2 &&
+    result.__slideShim.hasSlideW &&
+    result.__slideShim.hasSlideH
+  );
+  return { modeOk, confOk, shimOk, allOk: modeOk && confOk && shimOk };
 }
 
 function fmt(s, len) {
