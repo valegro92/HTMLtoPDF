@@ -674,12 +674,16 @@
     }
 
     // ── Generic export ──
+    // Disabilita tutti i 3 bottoni durante un export attivo: il server ha
+    // MAX_CONCURRENT=2 con coda graceful, ma evitando i click multipli del client
+    // riduciamo le richieste superflue e la pressione sulla coda.
+    const ALL_EXPORT_BTNS = [generateBtn, pptxBtn, pngBtn];
     async function doExport(btn, endpoint, body, fallbackName, successMsg) {
       const html = htmlInput.value.trim();
       if (!html) { showToast('Incolla del codice HTML prima di esportare.'); return; }
 
       btn.classList.add('loading');
-      btn.disabled = true;
+      ALL_EXPORT_BTNS.forEach(b => b.disabled = true);
 
       try {
         const res = await fetch(endpoint, {
@@ -711,7 +715,7 @@
         showToast(err.message, 'error');
       } finally {
         btn.classList.remove('loading');
-        btn.disabled = false;
+        ALL_EXPORT_BTNS.forEach(b => b.disabled = false);
       }
     }
 

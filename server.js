@@ -142,8 +142,44 @@ const PAGE_PX = {
   A3:     { w: 1123, h: 1587 },
 };
 
-// ── Concorrenza ──
+// ── Concorrenza con coda graceful ──
+// Invece di rispondere 429 immediato quando MAX_CONCURRENT è pieno, le richieste
+// si mettono in coda con un timeout. Così PDF + PPTX + PNG cliccati in sequenza
+// rapida non danno errore: il server li serializza dietro le quinte.
 let activeConversions = 0;
+const slotWaiters = [];
+const SLOT_QUEUE_TIMEOUT_MS = 25000;
+
+function acquireSlot(timeoutMs = SLOT_QUEUE_TIMEOUT_MS) {
+  return new Promise((resolve, reject) => {
+    if (activeConversions < MAX_CONCURRENT) {
+      activeConversions++;
+      return resolve();
+    }
+    let triggered = false;
+    const waiter = () => {
+      if (triggered) return;
+      triggered = true;
+      clearTimeout(timer);
+      activeConversions++;
+      resolve();
+    };
+    const timer = setTimeout(() => {
+      if (triggered) return;
+      triggered = true;
+      const idx = slotWaiters.indexOf(waiter);
+      if (idx !== -1) slotWaiters.splice(idx, 1);
+      reject(new Error('SLOT_TIMEOUT'));
+    }, timeoutMs);
+    slotWaiters.push(waiter);
+  });
+}
+
+function releaseSlot() {
+  activeConversions--;
+  const next = slotWaiters.shift();
+  if (next) next();
+}
 
 // ── Helper: sanitizzazione filename derivato da titolo HTML ──
 const MAX_FILENAME_LEN = 80;
@@ -184,9 +220,6 @@ app.get('/health', (req, res) => {
 // Auth-protected (uguale a /app). Body: { html, minSlides? }
 app.post('/detect', async (req, res) => {
   if (!isValidSession(req)) return res.status(401).json({ error: 'Non autorizzato.' });
-  if (activeConversions >= MAX_CONCURRENT) {
-    return res.status(429).json({ error: 'Server occupato, riprova tra qualche secondo.' });
-  }
   const { html } = req.body;
   if (!html || typeof html !== 'string') {
     return res.status(400).json({ error: 'Campo "html" mancante o non valido.' });
@@ -195,7 +228,9 @@ app.post('/detect', async (req, res) => {
     ? req.body.minSlides
     : 2;
 
-  activeConversions++;
+  try { await acquireSlot(); }
+  catch { return res.status(429).json({ error: 'Server occupato, riprova tra qualche secondo.' }); }
+
   let page = null;
   try {
     const b = await getBrowser();
@@ -208,17 +243,13 @@ app.post('/detect', async (req, res) => {
     if (b && !b.connected) clearBrowserRef();
     res.status(500).json({ error: `Detection fallita: ${err.message}` });
   } finally {
-    activeConversions--;
+    releaseSlot();
     if (page) await page.close().catch(() => {});
   }
 });
 
 // ── Endpoint principale ──
 app.post('/convert', async (req, res) => {
-  if (activeConversions >= MAX_CONCURRENT) {
-    return res.status(429).json({ error: 'Server occupato, riprova tra qualche secondo.' });
-  }
-
   const { html, format = 'A4', fitToPage = false, singlePage = false } = req.body;
 
   if (!html || typeof html !== 'string') {
@@ -229,7 +260,9 @@ app.post('/convert', async (req, res) => {
   const pageFormat = validFormats.includes(format) ? format : 'A4';
   const isAuto = pageFormat === 'Auto';
 
-  activeConversions++;
+  try { await acquireSlot(); }
+  catch { return res.status(429).json({ error: 'Server occupato, riprova tra qualche secondo.' }); }
+
   let page = null;
   try {
     const b = await getBrowser();
@@ -387,17 +420,13 @@ app.post('/convert', async (req, res) => {
     if (b && !b.connected) clearBrowserRef();
     res.status(500).json({ error: `Conversione fallita: ${err.message}` });
   } finally {
-    activeConversions--;
+    releaseSlot();
     if (page) await page.close().catch(() => {});
   }
 });
 
 // ── Endpoint PPTX: converte HTML in PowerPoint (slide native o screenshot) ──
 app.post('/convert-pptx', async (req, res) => {
-  if (activeConversions >= MAX_CONCURRENT) {
-    return res.status(429).json({ error: 'Server occupato, riprova tra qualche secondo.' });
-  }
-
   const { html } = req.body;
   if (!html || typeof html !== 'string') {
     return res.status(400).json({ error: 'Campo "html" mancante o non valido.' });
@@ -406,7 +435,9 @@ app.post('/convert-pptx', async (req, res) => {
   // Tipi permessi per PPTX — include 'script' per contenuti dinamici (Chart.js, ecc.)
   const PPTX_ALLOWED = new Set(['document', 'stylesheet', 'font', 'image', 'script']);
 
-  activeConversions++;
+  try { await acquireSlot(); }
+  catch { return res.status(429).json({ error: 'Server occupato, riprova tra qualche secondo.' }); }
+
   let page = null;
   try {
     const b = await getBrowser();
@@ -563,17 +594,13 @@ app.post('/convert-pptx', async (req, res) => {
     if (b && !b.connected) clearBrowserRef();
     res.status(500).json({ error: `Conversione PPTX fallita: ${err.message}` });
   } finally {
-    activeConversions--;
+    releaseSlot();
     if (page) await page.close().catch(() => {});
   }
 });
 
 // ── Endpoint PNG: screenshot per-slide (ZIP) o pagina intera ──
 app.post('/convert-png', async (req, res) => {
-  if (activeConversions >= MAX_CONCURRENT) {
-    return res.status(429).json({ error: 'Server occupato, riprova tra qualche secondo.' });
-  }
-
   const { html } = req.body;
   if (!html || typeof html !== 'string') {
     return res.status(400).json({ error: 'Campo "html" mancante o non valido.' });
@@ -582,7 +609,9 @@ app.post('/convert-png', async (req, res) => {
   // Stessi tipi permessi di PPTX (include script per contenuti dinamici)
   const PNG_ALLOWED = new Set(['document', 'stylesheet', 'font', 'image', 'script']);
 
-  activeConversions++;
+  try { await acquireSlot(); }
+  catch { return res.status(429).json({ error: 'Server occupato, riprova tra qualche secondo.' }); }
+
   let page = null;
   try {
     const b = await getBrowser();
@@ -708,7 +737,7 @@ app.post('/convert-png', async (req, res) => {
     if (b && !b.connected) clearBrowserRef();
     res.status(500).json({ error: `Conversione PNG fallita: ${err.message}` });
   } finally {
-    activeConversions--;
+    releaseSlot();
     if (page) await page.close().catch(() => {});
   }
 });
