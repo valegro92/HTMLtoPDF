@@ -1,8 +1,8 @@
 # Deploy Status
 
-**Run:** 25626679347  
-**Commit:** 626ea6e128cda84c581e57447120dadf102da88f  
-**Date:** 2026-05-10 10:45:11 UTC
+**Run:** 25626930496  
+**Commit:** efd3d2089e8c5e7f9854d1cfc66007f610d9fa02  
+**Date:** 2026-05-10 10:57:48 UTC
 
 ## 1. FLY_API_TOKEN check
 :white_check_mark: Token presente — lunghezza: 691 car., prefisso: `FlyV1 f`
@@ -37,7 +37,7 @@ Exit code: 0
 ## 4. flyctl apps list
 ```
  NAME               │ OWNER    │ STATUS   │ LATEST DEPLOY 
- cassetta-htmltopdf │ personal │ deployed │ 10m46s ago    
+ cassetta-htmltopdf │ personal │ deployed │ 12m13s ago    
 
 ```
 Exit code: 0
@@ -54,31 +54,32 @@ Waiting for depot builder...
 ==> Building image with Depot
 --> build:  (​)
 #1 [internal] load build definition from Dockerfile
-#1 transferring dockerfile: 857B 0.1s done
-#1 DONE 0.1s
+#1 transferring dockerfile: 857B 0.2s done
+#1 DONE 0.2s
 
 #2 [internal] load metadata for docker.io/library/node:20-slim
-#2 DONE 0.2s
+#2 DONE 0.3s
 
 #3 [internal] load .dockerignore
-#3 transferring context: 102B 0.1s done
-#3 DONE 0.1s
+#3 transferring context: 102B 0.2s
+#3 transferring context: 102B 0.2s done
+#3 DONE 0.2s
 
 #4 [1/6] FROM docker.io/library/node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
 #4 resolve docker.io/library/node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 done
 #4 DONE 0.0s
 
 #5 [internal] load build context
-#5 transferring context: 411.44kB 0.2s done
-#5 DONE 0.2s
+#5 transferring context: 411.59kB 0.5s done
+#5 DONE 0.5s
 
-#6 [3/6] WORKDIR /app
+#6 [4/6] COPY package*.json ./
 #6 CACHED
 
-#7 [4/6] COPY package*.json ./
+#7 [2/6] RUN apt-get update && apt-get install -y     chromium     fonts-liberation     fonts-noto-color-emoji     libatk-bridge2.0-0     libatk1.0-0     libcups2     libdbus-1-3     libdrm2     libgbm1     libnspr4     libnss3     libxcomposite1     libxdamage1     libxfixes3     libxkbcommon0     libxrandr2     --no-install-recommends     && rm -rf /var/lib/apt/lists/*
 #7 CACHED
 
-#8 [2/6] RUN apt-get update && apt-get install -y     chromium     fonts-liberation     fonts-noto-color-emoji     libatk-bridge2.0-0     libatk1.0-0     libcups2     libdbus-1-3     libdrm2     libgbm1     libnspr4     libnss3     libxcomposite1     libxdamage1     libxfixes3     libxkbcommon0     libxrandr2     --no-install-recommends     && rm -rf /var/lib/apt/lists/*
+#8 [3/6] WORKDIR /app
 #8 CACHED
 
 #9 [5/6] RUN npm ci --omit=dev --ignore-scripts
@@ -88,37 +89,38 @@ Waiting for depot builder...
 #10 DONE 0.0s
 
 #11 exporting to image
-#11 exporting layers 0.0s done
-#11 exporting manifest sha256:cb39679972fad8756330ab1bb750631c9331492fc689a4ed5e0f8473bf89fa10 done
-#11 exporting config sha256:0ff3da7aa6d151987e24f818702cf5980a0c641b0f2702bc5fbed375953ee9c8 done
-#11 pushing layers for registry.fly.io/cassetta-htmltopdf:deployment-01KR8QVDRRZPVZXZG7JYKPD88M@sha256:cb39679972fad8756330ab1bb750631c9331492fc689a4ed5e0f8473bf89fa10
-#11 pushing layer sha256:0ff3da7aa6d151987e24f818702cf5980a0c641b0f2702bc5fbed375953ee9c8
-#11 pushing layer sha256:454eb7cfc47050314f465eff8583992d1bbe94471d4571403e916ba7599b58b3
-#11 pushing layer sha256:cd2d757325baf0d2f571dd4287b7268a3c5219e675e49320eb685d80a13c3f4e
-#11 pushing layer sha256:ea2b60f3338f30537bdab1ed54994203d1ead1c8d5eccddf4c765a4de72de66f
-#11 pushing layer sha256:d47a14c887c91f3aefd6c374f761bb1436d91255d593df68f7c78def9ea6cdda
+#11 exporting layers 0.1s done
+#11 exporting manifest sha256:9f0908fb5f7042a5ef33de4e01a868f8c4ca6110731b6a98e513899e9c5c0144 done
+#11 exporting config sha256:b43c904a1a0a9ac21ce42135573602f6d658a8a96f1803d5c321025010a74fc1 done
+#11 pushing layers for registry.fly.io/cassetta-htmltopdf:deployment-01KR8RJJGRYNW5V1GPW15BZB14@sha256:9f0908fb5f7042a5ef33de4e01a868f8c4ca6110731b6a98e513899e9c5c0144
+#11 pushing layer sha256:b43c904a1a0a9ac21ce42135573602f6d658a8a96f1803d5c321025010a74fc1
 #11 pushing layer sha256:56b929f516b8989b818f27cb6306a665ffcd35c8d45d1a2e6019f94217717fdd
-#11 pushing layer sha256:12d475d252997f09f9ee1777835a1058b7e890ea8cec030c729396ea27c4c8ff 0.0s done
-#11 pushing layer sha256:2243cf1626c9741a1362ce7734d84169f70322c8a5033dda53a58981ece73b57
-#11 pushing layer sha256:0f7717c638de4578913abaa50505d868fdad208d7943d6c0b09fdc352a78a855
-#11 pushing layer sha256:cafbacc3deae17253644d092525dcad7ce789fc6260a5d953d273549e118b0c6
+#11 pushing layer sha256:8a170d0f0516b51b3848b1581ffb484c89242410a481279b559bbc3741a80d50
+#11 pushing layer sha256:d47a14c887c91f3aefd6c374f761bb1436d91255d593df68f7c78def9ea6cdda
 #11 pushing layer sha256:cfe42610999d219e11903496ae408c99612b16b265e8ca98ea743eb40400cdef
-#11 pushing layer sha256:cd2d757325baf0d2f571dd4287b7268a3c5219e675e49320eb685d80a13c3f4e 0.1s done
-#11 pushing layer sha256:0f7717c638de4578913abaa50505d868fdad208d7943d6c0b09fdc352a78a855 0.2s done
-#11 pushing layer sha256:cfe42610999d219e11903496ae408c99612b16b265e8ca98ea743eb40400cdef 0.1s done
-#11 pushing layer sha256:d47a14c887c91f3aefd6c374f761bb1436d91255d593df68f7c78def9ea6cdda 0.2s done
-#11 pushing layer sha256:56b929f516b8989b818f27cb6306a665ffcd35c8d45d1a2e6019f94217717fdd 0.3s done
-#11 pushing layers for registry.fly.io/cassetta-htmltopdf:deployment-01KR8QVDRRZPVZXZG7JYKPD88M@sha256:cb39679972fad8756330ab1bb750631c9331492fc689a4ed5e0f8473bf89fa10 0.3s done
-#11 pushing layer sha256:0ff3da7aa6d151987e24f818702cf5980a0c641b0f2702bc5fbed375953ee9c8 0.3s done
-#11 pushing layer sha256:454eb7cfc47050314f465eff8583992d1bbe94471d4571403e916ba7599b58b3 0.3s done
-#11 pushing layer sha256:ea2b60f3338f30537bdab1ed54994203d1ead1c8d5eccddf4c765a4de72de66f 0.3s done
-#11 pushing layer sha256:2243cf1626c9741a1362ce7734d84169f70322c8a5033dda53a58981ece73b57 0.3s done
-#11 pushing layer sha256:cafbacc3deae17253644d092525dcad7ce789fc6260a5d953d273549e118b0c6 0.3s done
-#11 pushing manifest for registry.fly.io/cassetta-htmltopdf:deployment-01KR8QVDRRZPVZXZG7JYKPD88M@sha256:cb39679972fad8756330ab1bb750631c9331492fc689a4ed5e0f8473bf89fa10 0.1s done
-#11 DONE 0.5s
+#11 pushing layer sha256:cafbacc3deae17253644d092525dcad7ce789fc6260a5d953d273549e118b0c6
+#11 pushing layer sha256:cd2d757325baf0d2f571dd4287b7268a3c5219e675e49320eb685d80a13c3f4e
+#11 pushing layer sha256:12d475d252997f09f9ee1777835a1058b7e890ea8cec030c729396ea27c4c8ff
+#11 pushing layer sha256:0f7717c638de4578913abaa50505d868fdad208d7943d6c0b09fdc352a78a855
+#11 pushing layer sha256:ea2b60f3338f30537bdab1ed54994203d1ead1c8d5eccddf4c765a4de72de66f
+#11 pushing layer sha256:2243cf1626c9741a1362ce7734d84169f70322c8a5033dda53a58981ece73b57
+#11 pushing layer sha256:ea2b60f3338f30537bdab1ed54994203d1ead1c8d5eccddf4c765a4de72de66f 0.2s done
+#11 pushing layer sha256:cd2d757325baf0d2f571dd4287b7268a3c5219e675e49320eb685d80a13c3f4e 0.3s done
+#11 pushing layer sha256:0f7717c638de4578913abaa50505d868fdad208d7943d6c0b09fdc352a78a855 0.3s done
+#11 pushing layer sha256:d47a14c887c91f3aefd6c374f761bb1436d91255d593df68f7c78def9ea6cdda 0.4s done
+#11 pushing layer sha256:cafbacc3deae17253644d092525dcad7ce789fc6260a5d953d273549e118b0c6 0.4s done
+#11 pushing layer sha256:12d475d252997f09f9ee1777835a1058b7e890ea8cec030c729396ea27c4c8ff 0.6s done
+#11 pushing layer sha256:2243cf1626c9741a1362ce7734d84169f70322c8a5033dda53a58981ece73b57 0.5s done
+#11 pushing layer sha256:56b929f516b8989b818f27cb6306a665ffcd35c8d45d1a2e6019f94217717fdd 0.7s done
+#11 pushing layer sha256:cfe42610999d219e11903496ae408c99612b16b265e8ca98ea743eb40400cdef 0.6s done
+#11 pushing layer sha256:b43c904a1a0a9ac21ce42135573602f6d658a8a96f1803d5c321025010a74fc1 0.7s done
+#11 pushing layer sha256:8a170d0f0516b51b3848b1581ffb484c89242410a481279b559bbc3741a80d50 0.8s done
+#11 pushing layers for registry.fly.io/cassetta-htmltopdf:deployment-01KR8RJJGRYNW5V1GPW15BZB14@sha256:9f0908fb5f7042a5ef33de4e01a868f8c4ca6110731b6a98e513899e9c5c0144 0.8s done
+#11 pushing manifest for registry.fly.io/cassetta-htmltopdf:deployment-01KR8RJJGRYNW5V1GPW15BZB14@sha256:9f0908fb5f7042a5ef33de4e01a868f8c4ca6110731b6a98e513899e9c5c0144 0.1s done
+#11 DONE 1.0s
 --> Build Summary:  (​)
 [38;5;252m--> Building image done[0m
-image: registry.fly.io/cassetta-htmltopdf:deployment-01KR8QVDRRZPVZXZG7JYKPD88M
+image: registry.fly.io/cassetta-htmltopdf:deployment-01KR8RJJGRYNW5V1GPW15BZB14
 image size: 317 MB
 
 Watch your deployment at https://fly.io/apps/cassetta-htmltopdf/monitoring
@@ -126,29 +128,38 @@ Watch your deployment at https://fly.io/apps/cassetta-htmltopdf/monitoring
 [2mINFO[0m Using wait timeout: 10m0s lease timeout: 13s delay between lease refreshes: 4s
 
 Updating existing machines in 'cassetta-htmltopdf' with rolling strategy
-> [1/2] Acquiring lease for 18590deb29eee8
-> [1/2] Acquired lease for 18590deb29eee8
-> [2/2] Acquiring lease for 1854737c27e1d8
-> [2/2] Acquired lease for 1854737c27e1d8
-> [1/2] Updating machine config for 18590deb29eee8
-> [2/2] Updating machine config for 1854737c27e1d8
-> [1/2] Updating 18590deb29eee8 [app]
-> [2/2] Updating 1854737c27e1d8 [app]
-> [2/2] Updated machine config for 1854737c27e1d8
-> [2/2] Waiting for machine 1854737c27e1d8 to reach a good state
-> [1/2] Updated machine config for 18590deb29eee8
-> [1/2] Waiting for machine 18590deb29eee8 to reach a good state
-> [2/2] Machine 1854737c27e1d8 reached stopped state
-✔ [2/2] Machine 1854737c27e1d8 is now in a good state
-> [1/2] Machine 18590deb29eee8 reached started state
-> [1/2] Running smoke checks on machine 18590deb29eee8
-> [1/2] Running machine checks on machine 18590deb29eee8
-> [1/2] Checking health of machine 18590deb29eee8
-✔ [1/2] Machine 18590deb29eee8 is now in a good state
-> [2/2] Clearing lease for 1854737c27e1d8
-> [1/2] Clearing lease for 18590deb29eee8
-✔ [1/2] Cleared lease for 18590deb29eee8
-✔ [2/2] Cleared lease for 1854737c27e1d8
+> [1/2] Acquiring lease for 1854737c27e1d8
+> [1/2] Acquired lease for 1854737c27e1d8
+> [2/2] Acquiring lease for 18590deb29eee8
+> [2/2] Acquired lease for 18590deb29eee8
+> [2/2] Updating machine config for 18590deb29eee8
+> [1/2] Updating machine config for 1854737c27e1d8
+> [1/2] Updating 1854737c27e1d8 [app]
+> [2/2] Updating 18590deb29eee8 [app]
+> [1/2] Updated machine config for 1854737c27e1d8
+> [1/2] Waiting for machine 1854737c27e1d8 to reach a good state
+> [2/2] Updated machine config for 18590deb29eee8
+> [2/2] Waiting for machine 18590deb29eee8 to reach a good state
+> [1/2] Machine 1854737c27e1d8 reached stopped state
+✔ [1/2] Machine 1854737c27e1d8 is now in a good state
+> [2/2] Machine 18590deb29eee8 reached started state
+
+WARNING The app is not listening on the expected address and will not be reachable by fly-proxy.
+You can fix this by configuring your app to listen on the following addresses:
+  - 0.0.0.0:3000
+Found these processes inside the machine with open listening sockets:
+ PROCESS        │ ADDRESSES                            
+────────────────┼──────────────────────────────────────
+ /.fly/hallpass │ [fdaa:73:f61:a7b:500:f5c5:2816:2]:22 
+
+> [2/2] Running smoke checks on machine 18590deb29eee8
+> [2/2] Running machine checks on machine 18590deb29eee8
+> [2/2] Checking health of machine 18590deb29eee8
+✔ [2/2] Machine 18590deb29eee8 is now in a good state
+> [2/2] Clearing lease for 18590deb29eee8
+> [1/2] Clearing lease for 1854737c27e1d8
+✔ [2/2] Cleared lease for 18590deb29eee8
+✔ [1/2] Cleared lease for 1854737c27e1d8
 Checking DNS configuration for cassetta-htmltopdf.fly.dev
 ✓ DNS configuration verified
 
