@@ -394,13 +394,18 @@
         if (arr.length > bestCount) { bestCount = arr.length; bestParent = p; }
       });
       if (bestParent && bestCount >= 2) {
-        // Force visibility (override CSS like .slide:not(.active) { visibility:hidden!important })
+        // Force visibility (override CSS like .slide:not(.active) { visibility:hidden!important }).
+        // Reset transform sui marker stessi: i framework usano translateY/scale per
+        // animare slide non-attive (es. .slide:not(.active){transform:translateY(20px) scale(0.98)})
+        // → questo sposta getBoundingClientRect e rompe il check `overlapping` server-side
+        // (rects con stessa CSS-position ma transform diverso appaiono in coordinate diverse).
         const bestKids = byParent.get(bestParent) || [];
         bestKids.forEach(el => {
           const cs = safeGetComputedStyle(el);
           if (cs && cs.display === 'none') el.style.setProperty('display', 'block', 'important');
           el.style.setProperty('visibility', 'visible', 'important');
           el.style.setProperty('opacity', '1', 'important');
+          el.style.setProperty('transform', 'none', 'important');
         });
         const markedKids = getMarked(bestParent);
         // ≥3 marker espliciti: l'autore ha dichiarato che sono slide, accettiamo
