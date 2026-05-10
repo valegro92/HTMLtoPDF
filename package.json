@@ -8,6 +8,7 @@
   },
   "scripts": {
     "start": "node server.js",
+    "test": "node test/run-fixtures.js",
     "postinstall": "npx puppeteer browsers install chrome"
   },
   "dependencies": {

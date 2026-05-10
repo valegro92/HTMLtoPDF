@@ -21,6 +21,7 @@
   const SIGNALS = [
     // ── presentation ──
     { name: 'marker_class_2plus',         mode: 'presentation', weight: 10, fn: c => c.markerCount >= 2 },
+    { name: 'marker_class_3plus_bonus',   mode: 'presentation', weight:  4, fn: c => c.markerCount >= 3 },
     { name: 'data_slide_attr_2plus',      mode: 'presentation', weight:  9, fn: c => c.dataSlideCount >= 2 },
     { name: 'presentation_script',        mode: 'presentation', weight:  8, fn: c => c.hasPresentationScript },
     { name: 'meta_generator_slides',      mode: 'presentation', weight:  7, fn: c => /reveal|gamma|slides|impress|spectacle|deck\.js|swiper/i.test(c.metaGenerator || '') },
@@ -168,17 +169,25 @@
     );
 
     // ── Sized children + similar size + aspect 16:9 (layout-dependent) ──
+    // Probe ricorsivo: cerca container con figli sized-like-viewport fino a depth 3.
+    // Reveal/swiper/altri framework wrappano le slide (body > .reveal > .slides > .slide):
+    // un check solo su body.children manca questi casi.
     let similarSizedViewportChildren = 0;
     let candidateAspect16x9 = false;
     if (body && vh > 0) {
-      const sizedKids = getSized(body, vh);
-      if (sizedKids.length >= 2 && similarSizedRects(sizedKids)) {
-        similarSizedViewportChildren = sizedKids.length;
-        const f = rectOf(sizedKids[0]);
-        if (f.height > 0) {
-          candidateAspect16x9 = Math.abs((f.width / f.height) - (16 / 9)) < 0.18;
+      const probe = (parent, depth) => {
+        if (depth > 3) return;
+        const sized = getSized(parent, vh);
+        if (sized.length >= 2 && similarSizedRects(sized) && sized.length > similarSizedViewportChildren) {
+          similarSizedViewportChildren = sized.length;
+          const f = rectOf(sized[0]);
+          candidateAspect16x9 = f.height > 0 && Math.abs((f.width / f.height) - (16 / 9)) < 0.18;
         }
-      }
+        for (const child of Array.from(parent.children)) {
+          if (child.children && child.children.length > 0) probe(child, depth + 1);
+        }
+      };
+      probe(body, 0);
     }
     ctx.similarSizedViewportChildren = similarSizedViewportChildren;
     ctx.candidateAspect16x9 = candidateAspect16x9;
@@ -456,7 +465,7 @@
     const margin = winnerScore > 0 ? (winnerScore - secondScore) / winnerScore : 0;
 
     let mode = winnerMode;
-    if (winnerScore <= 0 || confidence < 0.30 || margin < 0.15) {
+    if (winnerScore <= 0 || confidence < 0.25 || margin < 0.15) {
       mode = 'unknown';
     }
 
