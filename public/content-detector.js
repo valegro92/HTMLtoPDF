@@ -365,6 +365,16 @@
       return d;
     }
 
+    // Helper: ritorna shape compatibile con la vecchia API (slideElements/slideW/slideH).
+    // Manteniamo `elements/w/h` come alias per consumatori interni (detectContent),
+    // ma `slideElements/slideW/slideH` sono i nomi canonici letti da server.js.
+    function buildResult(els, wrapper) {
+      const r = rectOf(els[0]);
+      const w = Math.ceil(r.width);
+      const h = Math.ceil(r.height);
+      return { slideElements: els, elements: els, slideW: w, slideH: h, w, h, wrapper };
+    }
+
     // ── Strategy 0: explicit markers ──
     const allMarked = doc.querySelectorAll(
       '[class*="slide"], [class*="carousel-item"], [class*="swiper-slide"], [data-slide], [data-slide-index]'
@@ -393,9 +403,11 @@
           el.style.setProperty('opacity', '1', 'important');
         });
         const markedKids = getMarked(bestParent);
-        if (markedKids.length >= 2 && similarSizedRects(markedKids)) {
-          const r = rectOf(markedKids[0]);
-          return { elements: markedKids, w: Math.ceil(r.width), h: Math.ceil(r.height), wrapper: bestParent };
+        // ≥3 marker espliciti: l'autore ha dichiarato che sono slide, accettiamo
+        // anche dimensioni miste (es. cover verticale + slide orizzontali).
+        // ≥2 marker: richiediamo similar size per evitare match casuali.
+        if (markedKids.length >= 3 || (markedKids.length >= 2 && similarSizedRects(markedKids))) {
+          return buildResult(markedKids, bestParent);
         }
       }
     }
@@ -403,16 +415,14 @@
     // ── Strategy 1: direct body children sized like viewport ──
     const bodyKids = getSized(doc.body, vh);
     if (bodyKids.length >= minSlides && similarSizedRects(bodyKids)) {
-      const r = rectOf(bodyKids[0]);
-      return { elements: bodyKids, w: Math.ceil(r.width), h: Math.ceil(r.height), wrapper: doc.body };
+      return buildResult(bodyKids, doc.body);
     }
 
     // ── Strategy 2: wrapper child ──
     for (const child of Array.from(doc.body.children)) {
       const wKids = getSized(child, vh);
       if (wKids.length >= minSlides && similarSizedRects(wKids)) {
-        const r = rectOf(wKids[0]);
-        return { elements: wKids, w: Math.ceil(r.width), h: Math.ceil(r.height), wrapper: child };
+        return buildResult(wKids, child);
       }
     }
 
@@ -422,8 +432,7 @@
       if (depth(c) > 3) continue;
       const k = getSized(c, vh);
       if (k.length >= minSlides && similarSizedRects(k)) {
-        const r = rectOf(k[0]);
-        return { elements: k, w: Math.ceil(r.width), h: Math.ceil(r.height), wrapper: c };
+        return buildResult(k, c);
       }
     }
 
