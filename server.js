@@ -5,6 +5,7 @@ const crypto = require('crypto');
 
 const { getBrowser, setupPage, getBrowserRef, clearBrowserRef } = require('./lib/browser');
 const { SLIDE_DETECTION_JS } = require('./lib/slide-detection');
+const substackSync = require('./lib/substack-sync');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -33,10 +34,25 @@ const DEFAULT_ALLOWED = [
   'avv.roberto.barsanti@gmail.com',
 ].join(',');
 
-const ALLOWED_EMAILS = new Set(
-  (process.env.ALLOWED_EMAILS || DEFAULT_ALLOWED)
-    .split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
-);
+// Allowlist mutable: union di DEFAULT_ALLOWED (hardcoded) + ALLOWED_EMAILS env var
+// + lista syncata da Substack (substack-sync). Il sync è best-effort; se fallisce
+// la lista DEFAULT_ALLOWED rimane attiva.
+const baseAllowed = (process.env.ALLOWED_EMAILS || DEFAULT_ALLOWED)
+  .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+let ALLOWED_EMAILS = new Set(baseAllowed);
+
+function rebuildAllowedEmails(syncedEmails) {
+  const next = new Set(baseAllowed);
+  if (Array.isArray(syncedEmails)) {
+    for (const e of syncedEmails) {
+      if (e && /@/.test(e)) next.add(e.toLowerCase().trim());
+    }
+  }
+  ALLOWED_EMAILS = next;
+  console.log(`✅ Allowlist aggiornata: ${next.size} email totali (${baseAllowed.length} hardcoded + ${(syncedEmails || []).length} Substack)`);
+}
+
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'valegro92@gmail.com').toLowerCase();
 
 function makeSessionToken(email) {
   return crypto.createHmac('sha256', SESSION_SECRET).update(email.toLowerCase()).digest('hex');
@@ -99,6 +115,38 @@ app.post('/auth/logout', (req, res) => {
 app.get('/app', (req, res) => {
   if (!isValidSession(req)) return res.redirect('/login?next=/app');
   res.sendFile(path.join(__dirname, 'public', 'app.html'));
+});
+
+// ── Admin: solo ADMIN_EMAIL può vedere status sync e triggerare sync manuale ──
+function isAdmin(req) {
+  if (!isValidSession(req)) return false;
+  const cookies = parseCookies(req);
+  const email = decodeURIComponent(cookies['sess_email'] || '').toLowerCase();
+  return email === ADMIN_EMAIL;
+}
+
+app.get('/admin/sync-status', (req, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: 'Admin only' });
+  res.json({
+    publication: substackSync.PUBLICATION,
+    syncIntervalMs: substackSync.SYNC_INTERVAL_MS,
+    cookieConfigured: !!process.env.SUBSTACK_COOKIE,
+    allowedEmailsCount: ALLOWED_EMAILS.size,
+    baseAllowedCount: baseAllowed.length,
+    lastSync: substackSync.getLastSync(),
+  });
+});
+
+app.post('/admin/sync-now', async (req, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: 'Admin only' });
+  const r = await substackSync.syncOnce();
+  if (r && r.ok && Array.isArray(r.emails)) rebuildAllowedEmails(r.emails);
+  // Non rispediamo il body raw nelle attempts (può contenere dati Substack)
+  // a meno che ?debug=1 esplicito.
+  if (req.query.debug !== '1' && r && r.attempts) {
+    r.attempts = r.attempts.map(a => ({ ...a, bodyTextSample: a.bodyTextSample ? `[${(a.bodyTextSample || '').length} chars]` : undefined }));
+  }
+  res.json({ result: r, allowedEmailsCount: ALLOWED_EMAILS.size });
 });
 
 // ── Congela esecuzione JS della pagina prima dei screenshot per-slide.
@@ -756,7 +804,7 @@ async function shutdown() {
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
-// ── Startup con warm-up browser ──
+// ── Startup con warm-up browser + Substack sync ──
 app.listen(PORT, async () => {
   console.log(`✅ Server attivo su http://localhost:${PORT}`);
   try {
@@ -764,5 +812,15 @@ app.listen(PORT, async () => {
     console.log('🌐 Browser pronto');
   } catch (err) {
     console.error('⚠️  Warm-up browser fallito:', err.message);
+  }
+
+  // Avvia sync Substack in background. Se SUBSTACK_COOKIE non è settato il primo
+  // sync logga 'reason' e non fa nulla. Se sync ha successo, ALLOWED_EMAILS viene
+  // ricostruita con union(baseAllowed, syncedEmails).
+  substackSync.startBackgroundSync(rebuildAllowedEmails);
+  if (process.env.SUBSTACK_COOKIE) {
+    console.log(`🔄 Substack sync attivo (publication=${substackSync.PUBLICATION}, every ${Math.round(substackSync.SYNC_INTERVAL_MS / 60000)}min)`);
+  } else {
+    console.log('ℹ️  SUBSTACK_COOKIE non impostato — sync Substack disattivata, uso solo allowlist hardcoded');
   }
 });
