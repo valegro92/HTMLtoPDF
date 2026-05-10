@@ -156,6 +156,39 @@ app.get('/health', (req, res) => {
   });
 });
 
+// ── Endpoint debug: ritorna lo scoring del detector senza generare output ──
+// Auth-protected (uguale a /app). Body: { html, minSlides? }
+app.post('/detect', async (req, res) => {
+  if (!isValidSession(req)) return res.status(401).json({ error: 'Non autorizzato.' });
+  if (activeConversions >= MAX_CONCURRENT) {
+    return res.status(429).json({ error: 'Server occupato, riprova tra qualche secondo.' });
+  }
+  const { html, minSlides = 2 } = req.body;
+  if (!html || typeof html !== 'string') {
+    return res.status(400).json({ error: 'Campo "html" mancante o non valido.' });
+  }
+
+  activeConversions++;
+  let page = null;
+  try {
+    const b = await getBrowser();
+    page = await setupPage(b, html, ALLOWED_TYPES);
+    await page.addScriptTag({ content: SLIDE_DETECTION_JS });
+    const result = await page.evaluate((ms) =>
+      window.__detectContent({ minSlides: ms, debug: true, extractSlides: false }),
+    minSlides);
+    res.json(result);
+  } catch (err) {
+    console.error('❌ Errore /detect:', err.message);
+    const b = getBrowserRef();
+    if (b && !b.connected) clearBrowserRef();
+    res.status(500).json({ error: `Detection fallita: ${err.message}` });
+  } finally {
+    activeConversions--;
+    if (page) await page.close().catch(() => {});
+  }
+});
+
 // ── Endpoint principale ──
 app.post('/convert', async (req, res) => {
   if (activeConversions >= MAX_CONCURRENT) {
@@ -193,27 +226,17 @@ app.post('/convert', async (req, res) => {
     });
 
     if (isAuto) {
-      // 1. Detect slide mode (skip se singlePage=true)
-      let slideCapture = null;
+      // 1. Score-based detection (skip se singlePage=true)
+      // detection = { mode: 'presentation'|'document'|'infographic'|'dashboard'|'email'|'unknown',
+      //               confidence, recommendedFormat, rects?, overlapping?, slideW?, slideH? }
+      let detection = null;
       if (!singlePage) {
         await page.addScriptTag({ content: SLIDE_DETECTION_JS });
-        slideCapture = await page.evaluate(() => {
-          const result = window.__detectSlides();
-          if (!result || !result.slideElements || result.slideElements.length < 2) return null;
-          const rects = result.slideElements.map(el => {
-            const r = el.getBoundingClientRect();
-            return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) };
-          });
-          // overlapping = slide vere sovrapposte (stesso X E Y).
-          // Un carousel orizzontale ha stessa Y ma X diverso → NON overlapping, usiamo rects[i].
-          // detectSlides() resetta già overflow:hidden sui container, quindi anche le slide
-          // fuori viewport sono accessibili tramite clip sul loro rect effettivo.
-          const overlapping = rects.length >= 2 &&
-            Math.abs(rects[0].y - rects[1].y) < 10 &&
-            Math.abs(rects[0].x - rects[1].x) < 10;
-          return { rects, overlapping, slideW: Math.ceil(result.slideW), slideH: Math.ceil(result.slideH) };
-        });
+        detection = await page.evaluate(() => window.__detectContent({ minSlides: 3 }));
       }
+      const slideCapture = (detection && detection.mode === 'presentation' && detection.rects)
+        ? { rects: detection.rects, overlapping: detection.overlapping, slideW: detection.slideW, slideH: detection.slideH }
+        : null;
 
       if (slideCapture) {
         // ═══ Slide mode: screenshot pixel-perfect per ogni slide → PDF assemblato ═══
@@ -370,7 +393,7 @@ app.post('/convert-pptx', async (req, res) => {
     const b = await getBrowser();
     page = await setupPage(b, html, PPTX_ALLOWED);
 
-    // ── FASE 1: Rileva tipo di contenuto ──
+    // ── FASE 1: Rileva tipo di contenuto via scoring ──
     await page.addScriptTag({ content: SLIDE_DETECTION_JS });
     const slideData = await page.evaluate(() => {
       const docTitle = (() => {
@@ -381,24 +404,24 @@ app.post('/convert-pptx', async (req, res) => {
         return 'Presentazione';
       })();
 
-      const detection = window.__detectSlides(2);
+      const det = window.__detectContent({ minSlides: 2 });
 
-      if (detection && detection.slideElements && detection.slideElements.length >= 2) {
-        const { slideElements, slideW, slideH } = detection;
-        const rects = slideElements.map(el => {
-          const r = el.getBoundingClientRect();
-          return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) };
-        });
-        // Slide absolute-positioned (JS presentation): same y → screenshot one at a time
-        const overlapping = rects.length >= 2 &&
-          Math.abs(rects[0].y - rects[1].y) < 10 &&
-          Math.abs(rects[0].x - rects[1].x) < 10;
-        return { mode: 'slides', title: docTitle, slideW, slideH, rects, overlapping };
+      if (det && det.mode === 'presentation' && det.rects && det.rects.length >= 2) {
+        return {
+          mode: 'slides',
+          title: docTitle,
+          slideW: Math.ceil(det.slideW),
+          slideH: Math.ceil(det.slideH),
+          rects: det.rects,
+          overlapping: det.overlapping,
+        };
       }
 
+      // document / infographic / dashboard / email / unknown → screenshot fallback
       return {
         mode: 'screenshot',
         title: docTitle,
+        detectedMode: det ? det.mode : 'unknown',
         pageW: Math.max(document.body.scrollWidth, document.documentElement.scrollWidth),
         pageH: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight),
       };
@@ -549,16 +572,16 @@ app.post('/convert-png', async (req, res) => {
     const b = await getBrowser();
     page = await setupPage(b, html, PNG_ALLOWED);
 
-    // ── Detect slide mode ──
+    // ── Detect content type via scoring ──
     await page.addScriptTag({ content: SLIDE_DETECTION_JS });
 
     const slideInfo = await page.evaluate(() => {
-      const result = window.__detectSlides(2); // soglia 2 per PNG (stesso di PPTX)
-      if (!result || !result.slideElements || result.slideElements.length < 2) return null;
+      const det = window.__detectContent({ minSlides: 2 });
+      if (!det || det.mode !== 'presentation' || !det.rects || det.rects.length < 2) return null;
       return {
-        count: result.slideElements.length,
-        slideW: Math.ceil(result.slideW),
-        slideH: Math.ceil(result.slideH),
+        count: det.rects.length,
+        slideW: Math.ceil(det.slideW),
+        slideH: Math.ceil(det.slideH),
       };
     });
 

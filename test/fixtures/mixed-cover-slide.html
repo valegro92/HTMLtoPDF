@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Project Roadmap — Mixed Layout Deck</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #111827;
+      color: #f9fafb;
+      padding: 40px 20px;
+    }
+    .slide {
+      width: 1280px;
+      margin: 0 auto 32px auto;
+      padding: 60px 80px;
+      border-radius: 12px;
+      page-break-after: always;
+      position: relative;
+    }
+
+    /* Cover slide — vertical poster format, atypical dimensions */
+    .slide.cover {
+      width: 720px;
+      height: 1280px;
+      background: linear-gradient(160deg, #7c3aed 0%, #ec4899 60%, #f59e0b 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 80px 60px;
+      text-align: left;
+    }
+    .slide.cover .top .label {
+      font-size: 14px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      opacity: 0.85;
+      margin-bottom: 16px;
+    }
+    .slide.cover h1 {
+      font-size: 72px;
+      font-weight: 900;
+      letter-spacing: -2px;
+      line-height: 1.05;
+    }
+    .slide.cover .bottom { font-size: 18px; opacity: 0.9; }
+    .slide.cover .bottom strong { display: block; font-size: 24px; margin-bottom: 4px; }
+
+    /* Standard slides — 16:9 landscape, all identical dimensions */
+    .slide.std {
+      width: 1280px;
+      height: 720px;
+      background: #1f2937;
+      border: 1px solid #374151;
+    }
+    .slide.std .num {
+      position: absolute;
+      top: 40px;
+      right: 60px;
+      font-size: 14px;
+      color: #9ca3af;
+      letter-spacing: 2px;
+    }
+    .slide.std h2 {
+      font-size: 48px;
+      color: #fff;
+      margin-bottom: 12px;
+      font-weight: 800;
+    }
+    .slide.std .lead {
+      font-size: 20px;
+      color: #d1d5db;
+      margin-bottom: 36px;
+      max-width: 900px;
+      line-height: 1.5;
+    }
+    .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 24px; }
+    .col-card {
+      background: #111827;
+      padding: 24px;
+      border-radius: 12px;
+      border-left: 4px solid #8b5cf6;
+    }
+    .col-card h3 { font-size: 22px; margin-bottom: 8px; color: #c4b5fd; }
+    .col-card p { font-size: 16px; color: #d1d5db; line-height: 1.55; }
+    .timeline-row {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 24px;
+      padding: 18px 0;
+      border-bottom: 1px solid #374151;
+    }
+    .timeline-row .q {
+      font-size: 22px;
+      font-weight: 700;
+      color: #f59e0b;
+    }
+    .timeline-row p { color: #d1d5db; font-size: 16px; }
+    .stat-row { display: flex; gap: 32px; margin-top: 24px; }
+    .stat-row .stat {
+      flex: 1;
+      background: #111827;
+      padding: 28px;
+      border-radius: 12px;
+    }
+    .stat-row .stat .v { font-size: 48px; font-weight: 900; color: #ec4899; line-height: 1; }
+    .stat-row .stat .l { color: #9ca3af; margin-top: 8px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <h1 style="position:absolute;left:-9999px;">Project Aurora — H1 2026 Roadmap</h1>
+
+  <div class="slide cover">
+    <div class="top">
+      <div class="label">Internal · Confidential</div>
+      <h1>Project<br>Aurora<br>2026</h1>
+    </div>
+    <div class="bottom">
+      <strong>Engineering Roadmap, H1</strong>
+      Prepared for the leadership team — May 2026
+    </div>
+  </div>
+
+  <div class="slide std">
+    <div class="num">02 / 05</div>
+    <h2>Where we are today</h2>
+    <p class="lead">Aurora's core platform shipped to GA in March. Adoption is ahead of plan but several rough edges have surfaced in the long tail of customers.</p>
+    <div class="columns">
+      <div class="col-card">
+        <h3>Wins so far</h3>
+        <p>3,400 active workspaces. Median time-to-first-value is now 4 minutes (target was 8). NPS at 47.</p>
+      </div>
+      <div class="col-card">
+        <h3>Open issues</h3>
+        <p>Mobile experience is below bar. Permissions UI causes confusion in 22% of customer interviews. SSO setup takes too long for enterprise.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide std">
+    <div class="num">03 / 05</div>
+    <h2>H1 2026 priorities</h2>
+    <p class="lead">Three focus areas. Everything else is explicitly out of scope until July.</p>
+    <div class="columns">
+      <div class="col-card">
+        <h3>P1 — Mobile-first redesign</h3>
+        <p>Native iOS and Android apps. Web responsive overhaul. Owner: Ana K. Beta in May, GA in June.</p>
+      </div>
+      <div class="col-card">
+        <h3>P2 — Permissions v2</h3>
+        <p>Role-based access with team templates. Owner: Devon S. Internal alpha by mid-April.</p>
+      </div>
+      <div class="col-card">
+        <h3>P3 — Enterprise SSO</h3>
+        <p>SCIM provisioning, SAML/OIDC, audit logs. Owner: Priya R. Customer pilots in May.</p>
+      </div>
+      <div class="col-card">
+        <h3>Out of scope</h3>
+        <p>API redesign, billing portal, marketplace integrations. Revisit for H2 planning.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide std">
+    <div class="num">04 / 05</div>
+    <h2>Quarterly milestones</h2>
+    <p class="lead">Concrete dates we're holding ourselves to.</p>
+    <div class="timeline-row">
+      <div class="q">Q1</div>
+      <p>Permissions v2 internal alpha. Mobile design system v1 frozen. SSO discovery interviews complete.</p>
+    </div>
+    <div class="timeline-row">
+      <div class="q">Q2 early</div>
+      <p>iOS beta to design partners. Permissions v2 in 10% rollout. SSO pilot with 3 enterprise customers.</p>
+    </div>
+    <div class="timeline-row">
+      <div class="q">Q2 late</div>
+      <p>Mobile GA. Permissions v2 GA. SSO available for all paid plans. H2 planning kickoff.</p>
+    </div>
+  </div>
+
+  <div class="slide std">
+    <div class="num">05 / 05</div>
+    <h2>Targets and what success looks like</h2>
+    <p class="lead">If we hit these by end of June, H1 was a success.</p>
+    <div class="stat-row">
+      <div class="stat"><div class="v">8K</div><div class="l">Active workspaces (from 3.4K)</div></div>
+      <div class="stat"><div class="v">55+</div><div class="l">NPS (from 47)</div></div>
+      <div class="stat"><div class="v">12</div><div class="l">Enterprise logos signed</div></div>
+      <div class="stat"><div class="v">35%</div><div class="l">Mobile DAU share</div></div>
+    </div>
+  </div>
+
+</body>
+</html>

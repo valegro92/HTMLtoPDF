@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Brand Refresh Pitch — Reveal Active-Only</title>
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/reveal.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Helvetica Neue', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #fafaf7;
+      color: #1c1c1c;
+    }
+
+    .reveal {
+      position: relative;
+      width: 1280px;
+      height: 720px;
+      margin: 0 auto;
+    }
+
+    .slide {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 1280px;
+      height: 720px;
+      padding: 80px 100px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    /* Strict hide for non-active slides — tests force-visibility logic */
+    .slide:not(.active) {
+      visibility: hidden !important;
+      opacity: 0 !important;
+      display: none !important;
+    }
+
+    .slide.active {
+      visibility: visible;
+      opacity: 1;
+      display: flex;
+    }
+
+    .slide.cover {
+      background: #1c1c1c;
+      color: #fafaf7;
+      align-items: flex-start;
+    }
+    .slide.cover .kicker {
+      font-size: 14px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: #fbbf24;
+      margin-bottom: 16px;
+    }
+    .slide.cover h1 {
+      font-size: 88px;
+      font-weight: 800;
+      letter-spacing: -3px;
+      line-height: 1.0;
+      max-width: 1000px;
+    }
+    .slide.cover .meta {
+      margin-top: 48px;
+      font-size: 16px;
+      color: #888;
+    }
+
+    .slide.content {
+      background: #fafaf7;
+    }
+    .slide.content h2 {
+      font-size: 56px;
+      font-weight: 800;
+      letter-spacing: -1.5px;
+      margin-bottom: 24px;
+      color: #1c1c1c;
+    }
+    .slide.content .lead {
+      font-size: 22px;
+      line-height: 1.55;
+      color: #4a4a4a;
+      max-width: 950px;
+      margin-bottom: 32px;
+    }
+    .slide.content ul { list-style: none; }
+    .slide.content li {
+      font-size: 20px;
+      padding: 14px 0 14px 36px;
+      border-bottom: 1px solid #e5e5e5;
+      position: relative;
+      color: #2a2a2a;
+    }
+    .slide.content li::before {
+      content: '→';
+      position: absolute;
+      left: 0;
+      color: #fbbf24;
+      font-weight: bold;
+    }
+    .slide.split {
+      flex-direction: row;
+      align-items: stretch;
+      padding: 0;
+      background: #fafaf7;
+    }
+    .slide.split .left {
+      flex: 1;
+      background: #fbbf24;
+      padding: 80px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .slide.split .left h2 {
+      font-size: 56px;
+      font-weight: 800;
+      letter-spacing: -1.5px;
+      color: #1c1c1c;
+      line-height: 1.05;
+    }
+    .slide.split .right {
+      flex: 1;
+      padding: 80px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .slide.split .right p {
+      font-size: 20px;
+      line-height: 1.6;
+      color: #2a2a2a;
+      margin-bottom: 16px;
+    }
+    .pagebadge {
+      position: absolute;
+      bottom: 32px;
+      right: 100px;
+      font-size: 13px;
+      letter-spacing: 2px;
+      color: #999;
+    }
+  </style>
+</head>
+<body>
+  <h1 style="position:absolute;left:-9999px;">Northwind Brand Refresh — Concept Review</h1>
+
+  <div class="reveal">
+    <div class="slides">
+
+      <section class="slide active cover">
+        <span class="kicker">Concept review · 05.10.26</span>
+        <h1>The new<br>Northwind.</h1>
+        <div class="meta">Round 2 · Studio Bellweather · Confidential</div>
+      </section>
+
+      <section class="slide content">
+        <h2>The brief, in one sentence</h2>
+        <p class="lead">"Make Northwind feel like the most quietly confident shipping logistics company in North America — without losing the trust we've built over forty years."</p>
+        <ul>
+          <li>Audience: enterprise procurement, ages 35–60</li>
+          <li>Three competitors went neon. We are not going neon.</li>
+          <li>Tone: warm, exact, slightly dry</li>
+        </ul>
+        <div class="pagebadge">02 / 04</div>
+      </section>
+
+      <section class="slide split">
+        <div class="left">
+          <h2>Wordmark direction</h2>
+        </div>
+        <div class="right">
+          <p>The new Northwind wordmark uses a custom-drawn slab serif inspired by 1970s shipping manifests, but optically corrected for screen rendering at small sizes.</p>
+          <p>The lowercase 'd' was redrawn to terminate at a 12° angle — a quiet nod to a wind vane, our heritage mark.</p>
+          <p>It works at 12px in a CRM and at 12 meters on a truck.</p>
+        </div>
+        <div class="pagebadge">03 / 04</div>
+      </section>
+
+      <section class="slide content">
+        <h2>What we're asking for today</h2>
+        <p class="lead">Three decisions, in order of cost-to-reverse:</p>
+        <ul>
+          <li>Direction approval (cheap to revisit)</li>
+          <li>Color system commitment (medium cost)</li>
+          <li>Greenlight to begin truck livery production (expensive)</li>
+        </ul>
+        <div class="pagebadge">04 / 04</div>
+      </section>
+
+    </div>
+  </div>
+
+  <script>
+    // Static fixture: Reveal not initialized. CSS controls visibility.
+  </script>
+</body>
+</html>

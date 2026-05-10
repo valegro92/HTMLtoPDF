@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Operations Dashboard — Live KPIs</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0b1220;
+      color: #e2e8f0;
+      font-size: 14px;
+    }
+    .dashboard {
+      display: grid;
+      grid-template-rows: 56px 1fr;
+      width: 100vw;
+      height: 100vh;
+    }
+    header.bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      background: #0f172a;
+      border-bottom: 1px solid #1e293b;
+    }
+    header.bar .title {
+      font-weight: 700;
+      font-size: 15px;
+      color: #fff;
+      letter-spacing: 0.3px;
+    }
+    header.bar .title span {
+      color: #38bdf8;
+    }
+    header.bar .live {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #064e3b;
+      color: #6ee7b7;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    header.bar .live::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #34d399;
+    }
+    .filters { display: flex; gap: 8px; }
+    .filters .pill {
+      padding: 4px 12px;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      font-size: 12px;
+      color: #94a3b8;
+      background: transparent;
+      cursor: pointer;
+    }
+    .filters .pill.active {
+      background: #1e40af;
+      color: #fff;
+      border-color: #1e40af;
+    }
+    main.grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 16px;
+      padding: 16px;
+      height: 100%;
+      overflow: hidden;
+    }
+    .widget {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .widget header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .widget header h3 {
+      font-size: 13px;
+      color: #94a3b8;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .widget header .delta {
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .widget header .delta.up { background: #064e3b; color: #6ee7b7; }
+    .widget header .delta.down { background: #7f1d1d; color: #fca5a5; }
+
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      margin-bottom: 12px;
+    }
+    .kpi {
+      background: #1e293b;
+      padding: 14px;
+      border-radius: 8px;
+    }
+    .kpi .v { font-size: 28px; font-weight: 700; color: #fff; line-height: 1; }
+    .kpi .l { font-size: 11px; color: #64748b; margin-top: 6px; letter-spacing: 0.5px; text-transform: uppercase; }
+
+    .chart-host {
+      flex: 1;
+      position: relative;
+      min-height: 0;
+    }
+
+    table.tbl {
+      width: 100%;
+      font-size: 13px;
+      border-collapse: collapse;
+    }
+    table.tbl th, table.tbl td {
+      padding: 8px 6px;
+      text-align: left;
+      border-bottom: 1px solid #1e293b;
+    }
+    table.tbl th {
+      color: #64748b;
+      font-weight: 500;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    table.tbl td.num { text-align: right; font-variant-numeric: tabular-nums; color: #fff; }
+    .status { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .status.ok { background: #064e3b; color: #6ee7b7; }
+    .status.warn { background: #78350f; color: #fcd34d; }
+    .status.err { background: #7f1d1d; color: #fca5a5; }
+  </style>
+</head>
+<body>
+  <h1 style="position:absolute;left:-9999px;">Operations Dashboard</h1>
+  <div class="dashboard">
+
+    <header class="bar">
+      <div class="title">Operations <span>· Live</span></div>
+      <div class="filters">
+        <button class="pill">1H</button>
+        <button class="pill active">24H</button>
+        <button class="pill">7D</button>
+        <button class="pill">30D</button>
+      </div>
+      <div class="live">Streaming</div>
+    </header>
+
+    <main class="grid">
+
+      <section class="widget">
+        <header>
+          <h3>Revenue (last 24h)</h3>
+          <span class="delta up">▲ 12.4%</span>
+        </header>
+        <div class="kpi-row">
+          <div class="kpi"><div class="v">$184,210</div><div class="l">Gross</div></div>
+          <div class="kpi"><div class="v">$31.20</div><div class="l">AOV</div></div>
+        </div>
+        <div class="chart-host">
+          <canvas id="chart-revenue"></canvas>
+        </div>
+      </section>
+
+      <section class="widget">
+        <header>
+          <h3>API latency p95 (ms)</h3>
+          <span class="delta down">▼ 8.1%</span>
+        </header>
+        <div class="kpi-row">
+          <div class="kpi"><div class="v">142ms</div><div class="l">Current p95</div></div>
+          <div class="kpi"><div class="v">99.97%</div><div class="l">Uptime</div></div>
+        </div>
+        <div class="chart-host">
+          <canvas id="chart-latency"></canvas>
+        </div>
+      </section>
+
+      <section class="widget">
+        <header>
+          <h3>Top regions</h3>
+          <span class="delta up">▲ 3 new</span>
+        </header>
+        <div class="chart-host" style="display:flex;align-items:center;justify-content:center;">
+          <canvas id="chart-regions"></canvas>
+        </div>
+      </section>
+
+      <section class="widget">
+        <header>
+          <h3>Service status</h3>
+          <span class="delta up">All systems</span>
+        </header>
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>Service</th>
+              <th>Status</th>
+              <th>p50</th>
+              <th>Errors</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>api-gateway</td><td><span class="status ok">healthy</span></td><td class="num">38ms</td><td class="num">0.01%</td></tr>
+            <tr><td>auth-service</td><td><span class="status ok">healthy</span></td><td class="num">21ms</td><td class="num">0.00%</td></tr>
+            <tr><td>payments</td><td><span class="status warn">degraded</span></td><td class="num">119ms</td><td class="num">0.42%</td></tr>
+            <tr><td>search-index</td><td><span class="status ok">healthy</span></td><td class="num">54ms</td><td class="num">0.03%</td></tr>
+            <tr><td>email-worker</td><td><span class="status ok">healthy</span></td><td class="num">—</td><td class="num">0.00%</td></tr>
+            <tr><td>image-cdn</td><td><span class="status err">incident</span></td><td class="num">412ms</td><td class="num">2.18%</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+    </main>
+  </div>
+
+  <script>
+    // Static fixture: Chart.js loaded but no data rendered to keep file deterministic
+    // The presence of Chart.js + canvas elements is the dashboard signal.
+  </script>
+</body>
+</html>
