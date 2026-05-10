@@ -612,11 +612,10 @@ app.post('/convert-png', async (req, res) => {
       // ═══ MODALITÀ SLIDE: uno screenshot per slide → ZIP ═══
       console.log(`🖼️  PNG Slide mode: ${slideInfo.count} slide (${slideInfo.slideW}x${slideInfo.slideH}px)`);
 
-      // Imposta viewport abbastanza grande da contenere tutte le slide
-      await page.setViewport({ width: slideInfo.slideW, height: slideInfo.slideH * slideInfo.count + 200 });
-      await new Promise(r => setTimeout(r, 200));
-
-      // Ottieni i bounding rect di ogni slide rilevata
+      // Misura prima i rect nel viewport corrente per determinare overlapping.
+      // NOTA: NON impostiamo viewport=slideH*count perché il body con height:100vh
+      // si stira al viewport → slide con height:100% diventano enormi → screenshot
+      // pieni di vuoto. Lo screenshot clip funziona anche fuori dal viewport corrente.
       const slideRects = await page.evaluate((count) => {
         const result = window.__detectSlides(2);
         if (!result || !result.slideElements) return [];
@@ -630,6 +629,15 @@ app.post('/convert-png', async (req, res) => {
       const overlapping = slideRects.length >= 2 &&
         Math.abs(slideRects[0].y - slideRects[1].y) < 10 &&
         Math.abs(slideRects[0].x - slideRects[1].x) < 10;
+
+      // Per slide non-overlapping (carousel verticale stacked), allarga viewport
+      // alla bounding box totale così tutte le slide sono renderizzate prima dei screenshot.
+      if (!overlapping && slideRects.length > 0) {
+        const maxRight  = Math.max(...slideRects.map(r => r.x + r.w));
+        const maxBottom = Math.max(...slideRects.map(r => r.y + r.h));
+        await page.setViewport({ width: maxRight + 50, height: maxBottom + 50 });
+        await new Promise(r => setTimeout(r, 200));
+      }
 
       // Congela JS framework prima del loop
       await freezeJsExecution(page);
