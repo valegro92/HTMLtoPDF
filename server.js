@@ -32,6 +32,7 @@ const DEFAULT_ALLOWED = [
   'fscm.saiani@gmail.com',
   'armando.delucia@crmpartners.it',
   'avv.roberto.barsanti@gmail.com',
+  'info@nicolalorenzini.it',
 ].join(',');
 
 // Allowlist mutable: union di DEFAULT_ALLOWED (hardcoded) + ALLOWED_EMAILS env var
